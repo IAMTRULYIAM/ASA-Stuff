@@ -12,7 +12,7 @@ body{margin:0;padding:0;background:#aaa;font-family:Arial,'MS Gothic',sans-serif
 .tv-title{font-size:10px;letter-spacing:.18em;font-weight:bold;text-transform:uppercase;color:#555;margin-bottom:10px}
 .dh{text-align:left;padding:0 0 12px;margin-bottom:12px}
 .dh-y-pre{font-size:10px;letter-spacing:.12em;font-weight:bold;text-transform:uppercase;color:#444;margin-bottom:3px}
-.dh-y{font-size:28px;font-weight:bold;color:#000;letter-spacing:1px}
+.dh-y{font-size:52px;font-weight:bold;color:#000;letter-spacing:1px}
 .dh-a{font-size:14px;color:#000;margin-top:6px;letter-spacing:.05em}
 .dh-s{font-size:12px;color:#222;margin-top:3px}
 .dh-irl{font-size:10px;color:#555;margin-top:4px;letter-spacing:.06em}
@@ -114,11 +114,7 @@ body{margin:0;padding:0;background:#aaa;font-family:Arial,'MS Gothic',sans-serif
 </div>
 <div class="plbl">Planetary Orbits</div>
 <div class="pstrip" id="pg"></div>
-<div class="legend">
-  <b>Perlaxis</b> - closest approach &nbsp;/&nbsp;
-  <b>Equidistant</b> - mid-orbit &nbsp;/&nbsp;
-  <b>Apoaxis</b> - furthest point
-</div>
+
 <div class="statusrow">
   <div class="statcard empowered">
     <div class="slbl">Empowered</div>
@@ -167,6 +163,7 @@ body{margin:0;padding:0;background:#aaa;font-family:Arial,'MS Gothic',sans-serif
       <option value="259200000">3 days = 1 month</option>
       <option value="345600000">4 days = 1 month</option>
       <option value="432000000">5 days = 1 month</option>
+      <option value="10000">10 seconds = 1 month [TESTING]</option>
     </select>
   </div>
   <div class="gmstatus" id="gmstatus">Paused</div>
@@ -275,11 +272,26 @@ async function publishState(){
         if(sn) sn.textContent='';
         setTimeout(()=>fb.style.display='none',4000);
         return;
+      } else {
+        fb.textContent='Server error ('+res.status+') - link copied as fallback. Check KV binding.';
+        fb.style.display='block';
+        if(sn) sn.textContent='Check that the RP_STATE KV binding is set in Pages > Settings > Bindings.';
+        setTimeout(()=>{fb.style.display='none';if(sn)sn.textContent='';},8000);
+        try{await navigator.clipboard.writeText(url);}catch(e){}
+        return;
       }
-    }catch(e){console.warn('Remote save failed, using URL hash only.',e);}
+    }catch(e){
+      console.error('RP Calendar: /state request failed:',e);
+      fb.textContent='Server unreachable - link copied as fallback. Check console (F12) for details.';
+      fb.style.display='block';
+      if(sn) sn.textContent='Ensure functions/state.js is in your GitHub repo and KV is bound.';
+      setTimeout(()=>{fb.style.display='none';if(sn)sn.textContent='';},8000);
+      try{await navigator.clipboard.writeText(url);}catch(e){}
+      return;
+    }
   }
 
-  /* Fallback: copy URL */
+  /* Truly no endpoint configured */
   try{await navigator.clipboard.writeText(url);}catch(e){}
   fb.textContent='No server configured - link copied to clipboard. Share it with players.';
   fb.style.display='block';
