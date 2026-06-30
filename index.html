@@ -16,6 +16,8 @@ body{margin:0;padding:0;background:#aaa;font-family:Arial,'MS Gothic',sans-serif
 .dh-a{font-size:14px;color:#000;margin-top:6px;letter-spacing:.05em}
 .dh-s{font-size:12px;color:#222;margin-top:3px}
 .dh-irl{font-size:10px;color:#555;margin-top:4px;letter-spacing:.06em}
+.dh-era{font-size:12px;color:#000;margin-top:3px;letter-spacing:.04em;font-style:italic}
+.eraprefix{font-size:12px;font-weight:bold;color:#222;letter-spacing:.04em}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
 .card{background:#f0f0f0;border:1.5px solid #444;padding:12px}
 .lbl{font-size:10px;letter-spacing:.12em;color:#222;font-weight:bold;text-transform:uppercase;margin-bottom:8px}
@@ -90,8 +92,9 @@ body{margin:0;padding:0;background:#aaa;font-family:Arial,'MS Gothic',sans-serif
 <h2 class="sr-only">RP Calendar</h2>
 <div class="tv-title">RP Calendar</div>
 <div class="dh">
-  <div class="dh-y-pre">Current Year:</div>
-  <div class="dh-y" id="dy">21,350 RS</div>
+  <div class="dh-y-pre">Current Date:</div>
+  <div class="dh-y" id="dy">5E-672</div>
+  <div class="dh-era" id="de">Year 672 of the Lotus Emperor</div>
   <div class="dh-a" id="da">June</div>
   <div class="dh-s" id="ds">Early Summer</div>
   <div class="dh-irl" id="dh-irl"></div>
@@ -130,10 +133,11 @@ body{margin:0;padding:0;background:#aaa;font-family:Arial,'MS Gothic',sans-serif
 <div class="gmcontrols" id="gmcontrols">
   <div class="gclbl">GM Controls</div>
 
-  <div class="gcsub" style="border-top:none;padding-top:0">Jump to RP Date</div>
+  <div class="gcsub" style="border-top:none;padding-top:0">Jump to RP Date (Lotus Era)</div>
   <div class="gmrow">
-    <label>Year</label>
-    <input type="number" id="jy" value="21350" min="21350" max="99999">
+    <label>Date</label>
+    <span class="eraprefix">5E -</span>
+    <input type="number" id="jy" value="672" min="672" max="99999">
     <label>Month</label>
     <select id="js"></select>
     <button class="gmbtn" onclick="goTo()">Go</button>
@@ -205,7 +209,22 @@ const PL=[
   {n:'Demaplax',s:'Obeisance',c:95,o:0.05},
   {n:'Termis',s:'Revelations',c:236,o:0.2}
 ];
-const ER=[{y:0,n:'First Elder'},{y:2300,n:'Second Elder'},{y:8290,n:'Third Elder'},{y:9203,n:'Fourth Elder'},{y:11317,n:'Fifth Elder'},{y:18881,n:'Sixth Elder'}];
+/* ── Emperor era system (display layer) ──────────────────────────
+   st.year stays the absolute RS integer, so all astral math, the
+   anchor, and the /state KV sync (which the combat calculator reads)
+   are completely unchanged. These helpers only convert that integer
+   into Emperor-era notation for what the player sees.
+   Anchor: absolute year 21,350 = 5E-672 (Lotus Emperor, year 672).
+   The live calendar runs forward from the present, all within the
+   current (fifth, Lotus) reign. */
+const CUR_ERA=5,CUR_ERA_NAME='Lotus Emperor';
+const PRESENT_ERA_YEAR=672;            /* era-year at the present */
+const ERA_OFFSET=SY-PRESENT_ERA_YEAR;  /* 20678: absYear - ERA_OFFSET = 5E year */
+const EMPERORS={1:'Garland Emperor',2:'Loam Emperor',3:'Cowrie Emperor',4:'Silk Emperor',5:'Lotus Emperor'};
+function eraYearOf(abs){return abs-ERA_OFFSET;}      /* absolute -> current-era year */
+function absOfEraYear(y){return y+ERA_OFFSET;}       /* current-era year -> absolute */
+function fmtEraShort(abs){return CUR_ERA+'E-'+eraYearOf(abs);}
+function fmtEraLong(abs){return 'Year '+eraYearOf(abs).toLocaleString()+' of the '+CUR_ERA_NAME;}
 
 let gmTimer=null,gmDir=1,gmUnlocked=false;
 const g=id=>document.getElementById(id);
@@ -327,7 +346,7 @@ function calcIRLDate(){
   const d=new Date(input.value+'T12:00:00'); /* noon to avoid TZ edge cases */
   const rp=irlToRP(d);
   if(!rp){res.style.display='none';return;}
-  res.innerHTML='<b>'+rp.year.toLocaleString()+' RS</b> - '+SF[rp.seg]+' ('+MONTHS[rp.seg]+')';
+  res.innerHTML='<b>'+fmtEraShort(rp.year)+'</b> - '+SF[rp.seg]+' ('+MONTHS[rp.seg]+')';
   res.style.display='block';
 }
 
@@ -340,7 +359,7 @@ function jumpToIRL(){
   st={year:rp.year,seg:rp.seg};
   render();
   const js=g('js');if(js)js.value=st.seg;
-  const jy=g('jy');if(jy)jy.value=st.year;
+  const jy=g('jy');if(jy)jy.value=eraYearOf(st.year);
 }
 
 /* ── Moon SVG ──────────────────────────────────────────────────── */
@@ -366,7 +385,7 @@ function moonSVG(ph){
 /* ── Render ────────────────────────────────────────────────────── */
 function render(){
   const lp=curTot()%8;
-  set('dy',st.year.toLocaleString()+' RS');
+  set('dy',fmtEraShort(st.year));set('de',fmtEraLong(st.year));
   set('da',MONTHS[st.seg]);set('ds',SF[st.seg]);
   set('dh-irl',irlDate());set('sn',SF[st.seg]);set('sr',MONTHS[st.seg]);
   const sb=g('sb');sb.innerHTML='';
@@ -411,7 +430,7 @@ function checkCode(){
     const t=g('gmtab');t.textContent='GM \u25cf';t.style.color='#333';t.onclick=null;
     const js=g('js');
     SF.forEach((s,i)=>{const o=document.createElement('option');o.value=i;o.textContent=s;js.appendChild(o);});
-    js.value=st.seg;g('jy').value=st.year;
+    js.value=st.seg;g('jy').value=eraYearOf(st.year);
     /* show storage status */
     const sn=g('storage-note');
     if(sn) sn.textContent=STORAGE_ENDPOINT?'Server storage configured: '+STORAGE_ENDPOINT:'No server configured - using URL hash sharing.';
@@ -423,8 +442,8 @@ function checkCode(){
 }
 
 function goTo(){
-  const y=parseInt(g('jy').value),s=parseInt(g('js').value);
-  if(!isNaN(y)&&y>=SY&&!isNaN(s)&&s>=0&&s<SEGS){st={year:y,seg:s};render();}
+  const ey=parseInt(g('jy').value),s=parseInt(g('js').value),y=absOfEraYear(ey);
+  if(!isNaN(ey)&&y>=SY&&!isNaN(s)&&s>=0&&s<SEGS){st={year:y,seg:s};render();}
 }
 
 function advanceDate(dir){
