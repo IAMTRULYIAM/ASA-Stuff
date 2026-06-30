@@ -117,17 +117,6 @@ body{margin:0;padding:0;background:#aaa;font-family:Arial,'MS Gothic',sans-serif
 </div>
 <div class="plbl">Planetary Orbits</div>
 <div class="pstrip" id="pg"></div>
-
-<div class="statusrow">
-  <div class="statcard empowered">
-    <div class="slbl">Empowered</div>
-    <div id="empowered-list"><span class="sempty">none</span></div>
-  </div>
-  <div class="statcard faint">
-    <div class="slbl">Faint</div>
-    <div id="faint-list"><span class="sempty">none</span></div>
-  </div>
-</div>
 </div>
 
 <div class="gmcontrols" id="gmcontrols">
@@ -167,10 +156,22 @@ body{margin:0;padding:0;background:#aaa;font-family:Arial,'MS Gothic',sans-serif
       <option value="259200000">3 days = 1 month</option>
       <option value="345600000">4 days = 1 month</option>
       <option value="432000000">5 days = 1 month</option>
-      <option value="10000">10 seconds = 1 month [TESTING]</option>
+      <option value="5000">5 seconds = 1 month [TESTING]</option>
     </select>
   </div>
   <div class="gmstatus" id="gmstatus">Paused</div>
+
+  <div class="gcsub">School Status</div>
+  <div class="statusrow">
+    <div class="statcard empowered">
+      <div class="slbl">Empowered</div>
+      <div id="empowered-list"><span class="sempty">none</span></div>
+    </div>
+    <div class="statcard faint">
+      <div class="slbl">Faint</div>
+      <div id="faint-list"><span class="sempty">none</span></div>
+    </div>
+  </div>
 
   <div class="gcsub">Publish</div>
   <button class="gmpub" onclick="publishState()">&#10003; Publish and Save</button>
@@ -400,7 +401,7 @@ function render(){
     const def=pos==='Periapsis'?'Closest':pos==='Apoapsis'?'Distant':'Near';
     const d=mk('div','pi');
     d.innerHTML='<div class="psig b-'+cls+'"><img src="data:image/png;base64,'+SIG[p.n]+'" alt="'+p.n+'"/></div>'+
-      '<div class="pn">'+p.n+'</div><div class="psc">'+p.s+'</div>'+
+      '<div class="pn">'+p.n+'</div>'+
       '<div class="pp c-'+cls+'">'+pos+'</div><div class="pdef c-'+cls+'">'+def+'</div>';
     pg.appendChild(d);
     if(pos==='Periapsis') emp.push(schoolName(p));
