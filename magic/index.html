@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spell Selection</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Texturina:ital,opsz,wght@0,12..72,100..900;1,12..72,100..900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#9A958A;
+    --paper:#FBF6F3;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:"Texturina",Georgia,"Times New Roman",serif;
+    font-size:17px;
+    line-height:1.55;
+    -webkit-font-smoothing:antialiased;
+  }
+  .frame{
+    min-height:100%;
+    max-width:720px;
+    margin:0 auto;
+    padding:56px 28px 40px;
+    display:flex;
+    flex-direction:column;
+  }
+  .eyebrow{
+    font-size:11px;
+    letter-spacing:.34em;
+    text-transform:uppercase;
+    opacity:.6;
+    margin:0 0 40px;
+  }
+  h1{
+    font-size:26px;
+    font-weight:400;
+    letter-spacing:.02em;
+    margin:0 0 32px;
+  }
+  main{flex:1 0 auto;}
+
+  /* name field */
+  input[type=text]{
+    width:100%;
+    background:transparent;
+    border:0;
+    border-bottom:1px solid var(--ink);
+    color:var(--ink);
+    font-family:inherit;
+    font-size:26px;
+    padding:6px 0;
+    outline:none;
+  }
+  input[type=text]::placeholder{color:var(--ink);opacity:.32;}
+  input[type=text]:focus{border-bottom-width:2px;}
+
+  /* option lists */
+  ul.list{list-style:none;margin:0;padding:0;}
+  ul.list li{margin:0 0 2px;}
+  .opt{
+    width:100%;
+    display:block;
+    text-align:left;
+    background:transparent;
+    border:1px solid transparent;
+    color:var(--ink);
+    font:inherit;
+    padding:13px 16px;
+    cursor:pointer;
+  }
+  .opt:hover{border-color:var(--ink);}
+  .opt:focus-visible{outline:2px solid var(--ink);outline-offset:2px;}
+  .opt[aria-pressed=true]{background:var(--ink);color:var(--paper);border-color:var(--ink);}
+  .opt[disabled]{opacity:.3;cursor:default;}
+  .opt[disabled]:hover{border-color:transparent;}
+  .opt .title{display:flex;justify-content:space-between;gap:18px;align-items:baseline;}
+  .opt .title b{font-weight:400;}
+  .opt .meta{
+    font-size:11px;
+    letter-spacing:.22em;
+    text-transform:uppercase;
+    opacity:.6;
+    white-space:nowrap;
+  }
+  .opt .body{font-size:14.5px;opacity:.72;margin-top:5px;max-width:60ch;}
+  .opt[aria-pressed=true] .body,
+  .opt[aria-pressed=true] .meta{opacity:.85;}
+  .opt .fine{
+    font-size:13px;
+    margin-top:9px;
+    padding-top:9px;
+    border-top:1px solid var(--paper);
+    opacity:.85;
+  }
+  .opt .fine span{display:block;}
+
+  /* review */
+  dl{margin:0;}
+  dl div{display:flex;gap:20px;padding:11px 0;border-bottom:1px solid var(--ink);}
+  dl div:first-child{border-top:1px solid var(--ink);}
+  dt{
+    flex:0 0 132px;
+    font-size:11px;
+    letter-spacing:.22em;
+    text-transform:uppercase;
+    opacity:.6;
+    padding-top:4px;
+  }
+  dd{margin:0;flex:1;}
+  dd .sub{font-size:13px;opacity:.65;}
+
+  /* footer nav */
+  footer{
+    flex:0 0 auto;
+    margin-top:44px;
+    display:flex;
+    align-items:center;
+    gap:18px;
+  }
+  .arrow{
+    background:transparent;
+    border:0;
+    color:var(--ink);
+    font-family:inherit;
+    font-size:30px;
+    line-height:1;
+    padding:4px 10px;
+    cursor:pointer;
+  }
+  .arrow:hover{background:var(--ink);color:var(--paper);}
+  .arrow:focus-visible{outline:2px solid var(--ink);outline-offset:2px;}
+  .arrow[disabled]{opacity:.22;cursor:default;background:transparent;color:var(--ink);}
+  .status{
+    flex:1;
+    text-align:center;
+    font-size:11px;
+    letter-spacing:.22em;
+    text-transform:uppercase;
+    opacity:.6;
+  }
+  a{color:var(--ink);}
+  .ref{
+    display:inline-block;
+    margin-top:26px;
+    font-size:11px;
+    letter-spacing:.22em;
+    text-transform:uppercase;
+    opacity:.6;
+  }
+  .ref:hover{opacity:1;}
+  .note{font-size:13px;opacity:.65;margin-top:22px;max-width:56ch;}
+  .code{
+    font-family:ui-monospace,Menlo,Consolas,monospace;
+    font-size:12px;
+    white-space:pre-wrap;
+    word-break:break-word;
+    border:1px solid var(--ink);
+    padding:12px;
+    margin-top:14px;
+    opacity:.8;
+  }
+  @media (max-width:560px){
+    .frame{padding:34px 20px 28px;}
+    dl div{flex-direction:column;gap:2px;}
+    dt{flex:none;}
+  }
+  @media (prefers-reduced-motion:no-preference){
+    main{animation:fade .22s ease-out;}
+    @keyframes fade{from{opacity:0;}to{opacity:1;}}
+  }
+</style>
+</head>
+<body>
+<div class="frame">
+  <p class="eyebrow" id="eyebrow">Spell Selection</p>
+  <main id="main"></main>
+  <footer>
+    <button class="arrow" id="back" aria-label="Go back">&#8592;</button>
+    <span class="status" id="status"></span>
+    <button class="arrow" id="next" aria-label="Continue">&#8594;</button>
+  </footer>
+</div>
+
+<script>
+"use strict";
+
+var LINK_SCHOOLS = "https://discord.com/channels/1474306359142125613/1523021207631565031";
+var LINK_DISCIPLINES = "https://discord.com/channels/1474306359142125613/1523370968913809570/1523373398711992361";
+
+var SCHOOLS = {
+  FLAMES: { label: "Flames", spells: [
+    { n:"Ignite", l:1, d:"Instant", t:"Flick a finger to shoot out a small jet of fire. Useful to gunwielders, as it negates the need for gunpowder.", e:"No effects.", m:"No spark is lit." },
+    { n:"Redpalm", l:1, d:"30 seconds", t:"The chosen palm is enamoured with an incredibly high heat, capable of melting basic metal. Also used for rapid cauterization of wounds.", e:"Minor burn scars. 1 HP damage or 1 HP heal.", m:"The hand is overloaded and the arm goes numb for a few hours. Nerve-dead arm." },
+    { n:"Petit-Soleil", l:1, d:"5 seconds", t:"Generates a small ball of incredibly bright material, blinding all viewers for about 20 minutes. The caster must actively look away.", e:"Temporary blindness.", m:"The hand explodes. Obliterated hand." },
+    { n:"Lesser Fireball", l:2, d:"Instant", t:"Launches an orb of combustible fire. Sets an area of 2x2 metres alight.", e:"Major burn scars.", m:"The arm explodes. Amputated arm below the elbow." },
+    { n:"Feuerzunge", l:2, d:"30 seconds", t:"Turns any liquid held in the mouth into a highly flammable substance, then spits it out as a high power jet of fire. The jet continues a few seconds after the liquid runs out. Requires drinking beforehand.", e:"Major burn scars. 3 HP damage.", m:"The tongue explodes. No tongue." },
+    { n:"Ardorgyration", l:2, d:"30 minutes", t:"Summons 3 small orbs of fire that slowly gyrate around the caster. The orbs launch themselves at incoming projectiles and disable them. No effect on melee weapons, though an orb can be launched preemptively as a small bomb.", e:"Projectile immunity. 2 HP damage.", m:"The orbs are summoned but control is lost immediately. They launch on random trajectories." }
+  ]},
+  MEMORIES: { label: "Memories", spells: [
+    { n:"S\u00e9ance", l:1, d:"1 minute", t:"Pull a soul from the afterlife and force it into conversation. The subject sees the caster as their most beloved companion and answers questions willingly.", e:"No effects.", m:"The subject recognises the caster as a stranger, even if they knew them beforehand. Can still be bargained with." },
+    { n:"Necrocircuitus", l:1, d:"30 minutes", t:"Speak the full true name of a subject. A path is mentally illuminated to that subject's corpse.", e:"No effects.", m:"The caster is directed toward the corpses of people with similar names." },
+    { n:"Voyeur-quietus", l:1, d:"10 minutes", t:"Touch a subject, then fall into a trance. The caster sees the subject's last moments in fine detail, including things the subject was not aware of.", e:"No effects.", m:"The caster is trapped in the memory, stuck in the trance until the next new moon. Trance." },
+    { n:"Lesser Animation", l:2, d:"1 lunar cycle", t:"Animates a severed limb. The limb is intelligent and behaves as a companion. Works on heads, though they cannot talk. Requires recasting every lunar cycle.", e:"No effects.", m:"The animated limb is uncontrollable and feral. It scratches, strangles and hits anything in reach. Feral limb." },
+    { n:"Selenic Rest", l:2, d:"1 lunar cycle", t:"Grasp any part of the subject's body for 5 seconds, after which they fall into a deep coma. The subject can only be woken by the caster, but wakes on their own at the next new moon.", e:"Selenic rest.", m:"The spell reflects and the caster is put into a half-awake stance. Partially conscious." },
+    { n:"Essesymbiosis", l:2, d:"Instant", t:"Permanently gain the knowledge and memories of the next creature whose bones or flesh the caster consumes. Each new essence overrides the last. Not recommended before normal meals.", e:"Essesymbiosisal knowledge.", m:"The caster takes on a sentient sliver of the deceased personality, manifesting as an active voice in their head. Personality bleed." }
+  ]},
+  POWER: { label: "Power", spells: [
+    { n:"Gewaltpush", l:1, d:"Instant", t:"The next melee attack has dramatically enhanced strength, able to launch victims up to 10 metres backward on contact.", e:"2 HP damage.", m:"The hand or foot explodes. Obliterated hand." },
+    { n:"Stahlsqueeze", l:1, d:"30 seconds", t:"Briefly exert force on metal alloys, including armour and weapons. Anyone wearing armour or carrying weapons is squeezed and pushed downward, held in place.", e:"No effects.", m:"The caster becomes highly magnetic. All metal in the vicinity flies toward them at high velocity. Magnetic." },
+    { n:"Bollwerk", l:1, d:"Indefinite", t:"Hold breath and interlock fingers to produce a round, immobile barrier of dark glass. The barrier is impenetrable for as long as the breath is held.", e:"No effects.", m:"The caster faints immediately." },
+    { n:"Lesser Ray of Oblivion", l:2, d:"Instant", t:"Point a finger and unleash a thin ray which instantly melts and destroys everything it touches for 50 metres. Contact with a very durable substance deflects it unpredictably.", e:"4 HP damage.", m:"The hand explodes. Obliterated hand." },
+    { n:"Throws of Power", l:2, d:"5 seconds", t:"Close the eyes and generate a series of psionic ripples which devastate the local environment, including all nearby individuals.", e:"3 HP damage.", m:"The ripples are produced, but the caster also has a seizure and faints. Seizure." },
+    { n:"\u00dcberleap", l:2, d:"Instant", t:"A strengthened Gewaltpush against the ground, allowing jumps of up to 20 metres in height.", e:"No effects.", m:"The legs break on jumping. Broken leg, both." }
+  ]},
+  INSECT: { label: "Insects", spells: [
+    { n:"Swarmarchia", l:1, d:"1 day", t:"Tap into the latent swarm intelligence of an insect. Controls single insects or whole swarms, and convinces unrelated insects to join. A large enough swarm becomes capable of intelligent speech and can be ordered into combat. Requires recasting daily.", e:"Insect stings. 2 HP damage.", m:"The collective intelligence is lost, leaving a frenzied cloud attacking itself and everyone nearby." },
+    { n:"Scleroderma", l:1, d:"30 minutes", t:"Harden the skin by infusing it with chitin, at the cost of slower movement and increased vulnerability to heat.", e:"Chitin skin.", m:"The chitin burrows too deeply and movement is thoroughly reduced. It must be painfully picked off. Rooted chitin skin." },
+    { n:"Pseudopupila", l:1, d:"10 minutes", t:"The eyes briefly develop into a compound structure, allowing the caster to see hidden details and remain unnaturally alert.", e:"Compound vision.", m:"A random number of additional insectoid eyes grow in. Causes disorientation unless covered. Disorientation." },
+    { n:"Cockroach-song", l:2, d:"Instant", t:"Force the subject to vomit up to a pound of wriggling cockroaches or cicadas. This usually immobilises the victim for the duration.", e:"Nausea.", m:"Rather than scattering, the new insects heed the song and attempt to crawl into the caster's mouth. Nausea." },
+    { n:"Moth-Song", l:2, d:"1 day", t:"Two or four large elytra sprout from the back, allowing flight. The caster must take care to resist attraction to bright lights.", e:"Flight.", m:"The elytra do not heed orders. They flap and launch the caster in random directions. Undirected flight." },
+    { n:"Spider-song", l:2, d:"1 day", t:"Thousands of setae bristle on the hands, feet and chest. The caster can climb walls and is unaffected by blood pooling, but is sensitive to light.", e:"Adhesion.", m:"The caster cannot release from a surface without painful outside intervention. Grounded." }
+  ]},
+  CHANGES: { label: "Changes", spells: [
+    { n:"Crookscript", l:1, d:"Indefinite", t:"Press a finger to a document and warp the ink at will. The resulting words, shapes or art are indistinguishable from the original.", e:"No effects.", m:"The caster transcribes subconscious thoughts onto the page instead of the intended images or words." },
+    { n:"Decimate", l:1, d:"Instant", t:"Squeeze an item to break it down into its core structures, leaving uneven blocks of pure elements. Only works on objects small enough to put pressure on.", e:"No effects.", m:"Both of the caster's hands are cleanly amputated. Amputated hand, both." },
+    { n:"Acclimatation", l:1, d:"1 day", t:"Adapt to one of four elements, becoming vulnerable to all the others.", e:"Elemental acclimatation, chosen element.", m:"The caster becomes specifically vulnerable to that element instead." },
+    { n:"Extension", l:2, d:"Indefinite", t:"Graft an amputated limb onto the body. The limb integrates seamlessly and the caster has immediate intimate familiarity with it. Recast to remove.", e:"No effects.", m:"The limb fails to integrate, moving and acting of its own accord. Not usually aggressive, but very annoying. Foreign limb." },
+    { n:"Foolcopy", l:2, d:"3 days", t:"Divide in two through cytokinesis. The clone is physically identical but stupid and suggestible, eagerly follows demands, and dissolves within 3 days unless recast.", e:"No effects.", m:"The copy splits away as an uncontrollable animal. It craves the caster's strongest desires without moderation, seeking food, drink, sex and violence." },
+    { n:"Imago", l:2, d:"5 minutes", t:"Incite incredibly vivid and realistic hallucinations in a subject or group. Hallucinations can be touched and heard and can be overwhelming in size, but cannot harm the victim.", e:"No effects.", m:"The hallucinations are produced but are visible only to the caster. Embarrassing." }
+  ]},
+  REVELATIONS: { label: "Revelations", spells: [
+    { n:"The Fool", l:1, d:"Indefinite", t:"Meditate and astral-project into a weightless, incorporeal form. The caster's body can be freely manipulated while in this state.", e:"Out of body.", m:"The caster is projected several kilometres away from their body." },
+    { n:"Justice", l:1, d:"Instant", t:"Make eye contact with a subject. The caster knows with perfect certainty whether that individual is lying or telling the truth. A lie the subject believes registers as truth.", e:"No effects.", m:"The caster reads everything as truth." },
+    { n:"The High Priestess", l:1, d:"1 day", t:"Enhanced perception. The caster cannot be surprised, spots hidden details easily, and gains sight in pure darkness along with thermal and ultraviolet vision.", e:"Enhanced perception.", m:"A random number of eyes sprout on the face, sometimes from different animals. Disorientating." },
+    { n:"The Hermit", l:2, d:"1 hour", t:"Briefly vanish, relocating to the same position several thousand years in the past, though unable to interact with anything. One additional individual may be brought along.", e:"No effects.", m:"The caster is trapped in the past and cannot leave until the spell is cast again. Stacked miscasts send them further back." },
+    { n:"The Nine of Swords", l:2, d:"5 minutes", t:"Maintain unblinking eye contact with a subject. That individual is subjected to intense visions of a terrible, all-consuming future and is trapped in it until the spell ends.", e:"Assailed by visions.", m:"The caster shares the subject's terror, even if the subject is not frightening to them, and is stricken with paralysing fear. Assailed by visions." },
+    { n:"The Sun", l:2, d:"10 minutes", t:"See through walls, flesh and objects at an adjustable distance.", e:"Penetrative vision.", m:"The caster goes blind in one eye. Blind." }
+  ]},
+  OBEISANCE: { label: "Obeisance", spells: [
+    { n:"Otoshireru", l:1, d:"Indefinite", t:"Begin a process of enthralling devourment. The jaw unhinges and the throat becomes unnaturally durable. Any living creature swallowed is stored without deforming the caster's body, regardless of size, and can be regurgitated at will as a loyal familiar. The familiar must be consumed again to be reused, and all wounds it takes heal while stored. Maximum of five creatures.", e:"Gullethoard. If a caster with Gullethoard dies, all contained entities are released in a bloody confusion.", m:"The jaw breaks on attempting to unhinge it. The entity is not contained, only consumed live." },
+    { n:"Waizuman's Abidement", l:2, d:"10 minutes", t:"Swallow an active substance, such as a vial of poison, a burning charcoal or a glass of water, and become immune or adapted to that element's effects.", e:"Abidement.", m:"No effect. The caster simply ingests whatever they consumed." },
+    { n:"Daijesuto", l:2, d:"1 hour", t:"Ingest a creature stored through enthralling devourment. The caster's health is restored, but the swallowed entity is lost forever.", e:"3 HP heal.", m:"The caster donates their health to the consumed creature, weakening themselves and empowering it." }
+  ]}
+};
+
+var SCHOOL_ORDER = ["FLAMES","MEMORIES","POWER","INSECT","CHANGES","REVELATIONS","OBEISANCE"];
+
+var DISCIPLINES = {
+  CONQUEST: { label:"The Discipline of Conquest", schools:["FLAMES","POWER"] },
+  RENEWAL:  { label:"The Discipline of Renewal", schools:["INSECT","CHANGES"] },
+  TRUTH:    { label:"The Discipline of Truth", schools:["MEMORIES","REVELATIONS"] }
+};
+
+var DISCIPLINE_ORDER = ["TRUTH","CONQUEST","RENEWAL"];
+
+var EQUITIES = {
+  hedgesinger:  { label:"Hedgesinger", l1:1, l2:0, blurb:"Self taught, never formally trained." },
+  conservatory: { label:"Conservatory Trained", l1:3, l2:0, blurb:"Trained on campus within a single Discipline." },
+  acolyte:      { label:"Cult Acolyte", l1:1, l2:1, blurb:"Raised within a Heavenly Cult." },
+  sage:         { label:"Sage", l1:3, l2:1, blurb:"Deeply familiar with magic." }
+};
+
+var EQUITY_ORDER = ["hedgesinger","conservatory","acolyte","sage"];
+
+var ROMAN = { 1:"I", 2:"II" };
+
+var state = {
+  name: "",
+  equity: null,
+  school: null,
+  discipline: null,
+  picks: [],
+  saved: null,
+  error: null,
+  sending: false
+};
+
+var STEPS = ["name","equity","path","spells","review","saved"];
+var step = 0;
+
+var mainEl = document.getElementById("main");
+var eyebrowEl = document.getElementById("eyebrow");
+var statusEl = document.getElementById("status");
+var backEl = document.getElementById("back");
+var nextEl = document.getElementById("next");
+
+function isConservatory(){ return state.equity === "conservatory"; }
+
+function activeSchools(){
+  if (isConservatory()) return state.discipline ? DISCIPLINES[state.discipline].schools : [];
+  return state.school ? [state.school] : [];
+}
+
+function pool(){
+  var out = [];
+  activeSchools().forEach(function(key){
+    SCHOOLS[key].spells.forEach(function(sp){
+      if (sp.l <= maxLevel()) out.push({ school:key, spell:sp });
+    });
+  });
+  return out;
+}
+
+function maxLevel(){
+  var eq = EQUITIES[state.equity];
+  return (eq && eq.l2 > 0) ? 2 : 1;
+}
+
+function available(level){
+  return pool().filter(function(p){ return p.spell.l === level; }).length;
+}
+
+function required(level){
+  var eq = EQUITIES[state.equity];
+  if (!eq) return 0;
+  var want = level === 1 ? eq.l1 : eq.l2;
+  return Math.min(want, available(level));
+}
+
+function chosen(level){
+  return state.picks.filter(function(p){ return p.spell.l === level; }).length;
+}
+
+function pickKey(p){ return p.school + "/" + p.spell.n; }
+
+function isPicked(p){
+  return state.picks.some(function(x){ return pickKey(x) === pickKey(p); });
+}
+
+function togglePick(p){
+  if (isPicked(p)){
+    state.picks = state.picks.filter(function(x){ return pickKey(x) !== pickKey(p); });
+  } else {
+    if (chosen(p.spell.l) >= required(p.spell.l)) return;
+    state.picks.push(p);
+  }
+  render();
+}
+
+function el(tag, attrs, kids){
+  var node = document.createElement(tag);
+  if (attrs) Object.keys(attrs).forEach(function(k){
+    if (k === "text") node.textContent = attrs[k];
+    else if (k === "html") node.innerHTML = attrs[k];
+    else if (k === "on") Object.keys(attrs.on).forEach(function(ev){ node.addEventListener(ev, attrs.on[ev]); });
+    else if (attrs[k] !== null && attrs[k] !== false && attrs[k] !== undefined) node.setAttribute(k, attrs[k]);
+  });
+  (kids || []).forEach(function(k){ node.appendChild(k); });
+  return node;
+}
+
+function optionButton(opts){
+  var btn = el("button", {
+    "class":"opt",
+    "type":"button",
+    "aria-pressed": opts.selected ? "true" : "false",
+    disabled: opts.disabled ? "disabled" : null,
+    on:{ click: opts.onClick }
+  });
+  var title = el("div", { "class":"title" });
+  title.appendChild(el("b", { text: opts.title }));
+  if (opts.meta) title.appendChild(el("span", { "class":"meta", text: opts.meta }));
+  btn.appendChild(title);
+  if (opts.body) btn.appendChild(el("div", { "class":"body", text: opts.body }));
+  if (opts.fine){
+    var fine = el("div", { "class":"fine" });
+    opts.fine.forEach(function(line){ fine.appendChild(el("span", { text: line })); });
+    btn.appendChild(fine);
+  }
+  return btn;
+}
+
+function refLink(href, text){
+  return el("a", { "class":"ref", href:href, target:"_blank", rel:"noopener", text:text });
+}
+
+/* screens */
+
+function screenName(){
+  var frag = document.createDocumentFragment();
+  frag.appendChild(el("h1", { text:"Name" }));
+  var input = el("input", { type:"text", id:"nameInput", value:state.name, placeholder:"Name", autocomplete:"off", spellcheck:"false" });
+  input.addEventListener("input", function(){ state.name = input.value; updateNav(); });
+  input.addEventListener("keydown", function(e){ if (e.key === "Enter") goNext(); });
+  frag.appendChild(input);
+  setTimeout(function(){ input.focus(); }, 0);
+  return frag;
+}
+
+function screenEquity(){
+  var frag = document.createDocumentFragment();
+  frag.appendChild(el("h1", { text:"Magical equity" }));
+  var list = el("ul", { "class":"list" });
+  EQUITY_ORDER.forEach(function(key){
+    var eq = EQUITIES[key];
+    var li = el("li");
+    li.appendChild(optionButton({
+      title: eq.label,
+      meta: eq.l2 ? "I \u00d7" + eq.l1 + "  II \u00d7" + eq.l2 : "I \u00d7" + eq.l1,
+      body: eq.blurb,
+      selected: state.equity === key,
+      onClick: function(){
+        if (state.equity !== key){
+          state.equity = key;
+          state.picks = [];
+          if (key === "conservatory") state.school = null; else state.discipline = null;
+        }
+        render();
+      }
+    }));
+    list.appendChild(li);
+  });
+  frag.appendChild(list);
+  return frag;
+}
+
+function screenPath(){
+  var frag = document.createDocumentFragment();
+  if (isConservatory()){
+    frag.appendChild(el("h1", { text:"Discipline" }));
+    var dlist = el("ul", { "class":"list" });
+    DISCIPLINE_ORDER.forEach(function(key){
+      var d = DISCIPLINES[key];
+      var li = el("li");
+      li.appendChild(optionButton({
+        title: d.label,
+        meta: d.schools.map(function(s){ return SCHOOLS[s].label; }).join(" \u00b7 "),
+        selected: state.discipline === key,
+        onClick: function(){
+          if (state.discipline !== key){ state.discipline = key; state.picks = []; }
+          render();
+        }
+      }));
+      dlist.appendChild(li);
+    });
+    frag.appendChild(dlist);
+    frag.appendChild(refLink(LINK_DISCIPLINES, "Disciplines \u2197"));
+    return frag;
+  }
+
+  frag.appendChild(el("h1", { text:"School of magic" }));
+  var list = el("ul", { "class":"list" });
+  SCHOOL_ORDER.forEach(function(key){
+    var s = SCHOOLS[key];
+    var first = s.spells.filter(function(x){ return x.l === 1; }).length;
+    var thin = first < EQUITIES[state.equity].l1;
+    var li = el("li");
+    li.appendChild(optionButton({
+      title: s.label,
+      meta: thin ? "only " + first + " of order I" : null,
+      selected: state.school === key,
+      onClick: function(){
+        if (state.school !== key){ state.school = key; state.picks = []; }
+        render();
+      }
+    }));
+    list.appendChild(li);
+  });
+  frag.appendChild(list);
+  frag.appendChild(refLink(LINK_SCHOOLS, "Schools of magic \u2197"));
+  return frag;
+}
+
+function screenSpells(){
+  var frag = document.createDocumentFragment();
+  frag.appendChild(el("h1", { text:"Starting spells" }));
+
+  var list = el("ul", { "class":"list" });
+  pool().forEach(function(p){
+    var picked = isPicked(p);
+    var full = !picked && chosen(p.spell.l) >= required(p.spell.l);
+    var meta = ROMAN[p.spell.l] + "  \u00b7  " + p.spell.d;
+    var li = el("li");
+    li.appendChild(optionButton({
+      title: p.spell.n,
+      meta: (isConservatory() ? SCHOOLS[p.school].label + "  \u00b7  " : "") + meta,
+      body: p.spell.t,
+      fine: picked ? ["Effect: " + p.spell.e, "Miscast: " + p.spell.m] : null,
+      selected: picked,
+      disabled: full,
+      onClick: function(){ togglePick(p); }
+    }));
+    list.appendChild(li);
+  });
+  frag.appendChild(list);
+  return frag;
+}
+
+function screenReview(){
+  var frag = document.createDocumentFragment();
+  frag.appendChild(el("h1", { text:"Review" }));
+
+  var dl = el("dl");
+  function row(label, value, sub){
+    var d = el("div");
+    d.appendChild(el("dt", { text: label }));
+    var dd = el("dd", { text: value });
+    if (sub) dd.appendChild(el("div", { "class":"sub", text: sub }));
+    d.appendChild(dd);
+    dl.appendChild(d);
+  }
+  row("Name", state.name);
+  row("Equity", EQUITIES[state.equity].label);
+  if (isConservatory()) row("Discipline", DISCIPLINES[state.discipline].label);
+  row("Schools", activeSchools().map(function(s){ return SCHOOLS[s].label; }).join(", "));
+  state.picks.slice().sort(function(a,b){ return a.spell.l - b.spell.l; }).forEach(function(p, i){
+    row("Spell " + (i+1), p.spell.n, ROMAN[p.spell.l] + "  \u00b7  " + SCHOOLS[p.school].label + "  \u00b7  " + p.spell.d);
+  });
+  frag.appendChild(dl);
+
+  if (state.error){
+    frag.appendChild(el("p", { "class":"note", text: state.error }));
+    frag.appendChild(el("div", { "class":"code", text: JSON.stringify(payload(), null, 2) }));
+  }
+  return frag;
+}
+
+function screenSaved(){
+  var frag = document.createDocumentFragment();
+  frag.appendChild(el("h1", { text:"Filed" }));
+  var dl = el("dl");
+  var d = el("div");
+  d.appendChild(el("dt", { text:"Reference" }));
+  d.appendChild(el("dd", { text: state.saved }));
+  dl.appendChild(d);
+  frag.appendChild(dl);
+  var again = el("a", { "class":"ref", href:"#", text:"Start again" });
+  again.addEventListener("click", function(e){
+    e.preventDefault();
+    state = { name:"", equity:null, school:null, discipline:null, picks:[], saved:null, error:null, sending:false };
+    step = 0;
+    render();
+  });
+  frag.appendChild(again);
+  return frag;
+}
+
+/* navigation */
+
+function canAdvance(){
+  var s = STEPS[step];
+  if (s === "name") return state.name.trim().length > 0;
+  if (s === "equity") return !!state.equity;
+  if (s === "path") return isConservatory() ? !!state.discipline : !!state.school;
+  if (s === "spells") return chosen(1) === required(1) && chosen(2) === required(2);
+  if (s === "review") return !state.sending;
+  return false;
+}
+
+function statusText(){
+  var s = STEPS[step];
+  if (s === "spells"){
+    var parts = [];
+    parts.push("I " + chosen(1) + "/" + required(1));
+    if (required(2)) parts.push("II " + chosen(2) + "/" + required(2));
+    return parts.join("   ");
+  }
+  if (s === "review" && state.sending) return "Filing";
+  return "";
+}
+
+function payload(){
+  return {
+    name: state.name.trim(),
+    equity: state.equity,
+    equityLabel: EQUITIES[state.equity].label,
+    discipline: isConservatory() ? DISCIPLINES[state.discipline].label : null,
+    schools: activeSchools().map(function(s){ return SCHOOLS[s].label; }),
+    spells: state.picks.map(function(p){
+      return { school: SCHOOLS[p.school].label, name: p.spell.n, level: p.spell.l };
+    })
+  };
+}
+
+function submit(){
+  state.sending = true;
+  state.error = null;
+  render();
+  fetch("/api/characters", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload())
+  }).then(function(res){
+    return res.json().then(function(data){ return { ok: res.ok, data: data }; });
+  }).then(function(r){
+    state.sending = false;
+    if (r.ok && r.data && r.data.ok){
+      state.saved = r.data.id;
+      step = STEPS.indexOf("saved");
+    } else {
+      state.error = (r.data && r.data.error) ? r.data.error : "The register did not accept the record.";
+    }
+    render();
+  }).catch(function(){
+    state.sending = false;
+    state.error = "The register could not be reached.";
+    render();
+  });
+}
+
+function goNext(){
+  if (!canAdvance()) return;
+  if (STEPS[step] === "review"){ submit(); return; }
+  step = Math.min(step + 1, STEPS.length - 1);
+  render();
+}
+
+function goBack(){
+  if (step === 0 || STEPS[step] === "saved") return;
+  step = step - 1;
+  render();
+}
+
+function updateNav(){
+  nextEl.disabled = !canAdvance();
+  backEl.disabled = step === 0 || STEPS[step] === "saved";
+  statusEl.textContent = statusText();
+}
+
+function render(){
+  var s = STEPS[step];
+  mainEl.innerHTML = "";
+  if (s === "name") mainEl.appendChild(screenName());
+  else if (s === "equity") mainEl.appendChild(screenEquity());
+  else if (s === "path") mainEl.appendChild(screenPath());
+  else if (s === "spells") mainEl.appendChild(screenSpells());
+  else if (s === "review") mainEl.appendChild(screenReview());
+  else mainEl.appendChild(screenSaved());
+  eyebrowEl.textContent = state.name.trim() ? state.name.trim() : "Spell Selection";
+  updateNav();
+  window.scrollTo(0, 0);
+}
+
+backEl.addEventListener("click", goBack);
+nextEl.addEventListener("click", goNext);
+document.addEventListener("keydown", function(e){
+  if (e.target && e.target.tagName === "INPUT") return;
+  if (e.key === "ArrowRight") goNext();
+  if (e.key === "ArrowLeft") goBack();
+});
+
+render();
+</script>
+</body>
+</html>
