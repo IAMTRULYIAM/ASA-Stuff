@@ -97,8 +97,6 @@
  .editor.needs-code #pawn-controls { display: none; }
 
  /* zoom cluster overlaid on the stage */
- .zoom-cluster { position: absolute; right: 8px; bottom: 8px; display: flex; flex-direction: column; gap: 4px; z-index: 50; }
- .zoom-cluster button { width: 34px; height: 30px; font-size: 15px; background: #eee; }
 
  /* roster chips */
  .roster { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
@@ -233,14 +231,9 @@
        <div id="layer">
          <img id="map-img" alt="" draggable="false" />
        </div>
-       <div class="zoom-cluster">
-         <button onclick="zoomBy(1.25)" title="Zoom in">+</button>
-         <button onclick="zoomBy(0.8)" title="Zoom out">&minus;</button>
-         <button onclick="fitView()" title="Fit map" style="font-size:11px;">FIT</button>
-       </div>
      </div>
    </div>
-   <div class="note small" style="margin-top:6px;">Drag empty map to pan, scroll to zoom, drag a pawn to move it, click a pawn to select it.</div>
+   <div class="note small" style="margin-top:6px;">Drag empty map to pan, scroll to zoom, drag a pawn to move it, click a pawn to select it, click empty map to deselect.</div>
  </div>
 
  <!-- MODERATOR -->
@@ -802,8 +795,6 @@
  panY = cy - my * zoom;
  applyTransform();
  }
- function zoomBy(f) { zoomAt(stage.clientWidth / 2, stage.clientHeight / 2, f); }
-
  stage.addEventListener('wheel', e => {
  e.preventDefault();
  const r = stage.getBoundingClientRect();
@@ -811,7 +802,7 @@
  }, { passive: false });
 
  /* ══ POINTER: pan vs drag-pawn ═══════════════════════════════════ */
- let panStart = null;
+ let panStart = null, panMoved = false;
  stage.addEventListener('pointerdown', e => {
  const pawnEl = e.target.closest('.pawn');
  if (pawnEl) { startPawnDrag(pawnEl, e); return; }
@@ -819,6 +810,7 @@
  if (markEl) { startMarkDrag(markEl, e); return; }
  /* pan */
  panStart = { x: e.clientX, y: e.clientY, panX, panY };
+ panMoved = false;
  stage.classList.add('panning');
  stage.setPointerCapture(e.pointerId);
  });
@@ -826,15 +818,27 @@
  if (dragging) { movePawnDrag(e); return; }
  if (draggingMark) { moveMarkDrag(e); return; }
  if (panStart) {
- panX = panStart.panX + (e.clientX - panStart.x);
- panY = panStart.panY + (e.clientY - panStart.y);
+ const dx = e.clientX - panStart.x, dy = e.clientY - panStart.y;
+ /* a few pixels of wobble is still a click, not a drag */
+ if (Math.abs(dx) > 3 || Math.abs(dy) > 3) panMoved = true;
+ panX = panStart.panX + dx;
+ panY = panStart.panY + dy;
  applyTransform();
  }
  });
  function endPointer(e) {
  if (dragging) endPawnDrag();
  if (draggingMark) endMarkDrag();
- if (panStart) { panStart = null; stage.classList.remove('panning'); }
+ if (panStart) {
+ const wasClick = !panMoved;
+ panStart = null; panMoved = false;
+ stage.classList.remove('panning');
+ /* tapping empty map puts down whatever was selected */
+ if (wasClick && (selectedId || selectedMarkId)) {
+ selectedId = null; selectedMarkId = null;
+ render();
+ }
+ }
  }
 
  let draggingMark = null, markMoved = false, markOffset = null;
@@ -1266,7 +1270,7 @@
  Object.assign(window, {
  addPawn, previewNew, renameSelected, sizeSelected, deleteSelected,
  tryUnlockMod, lockMod, clearBoard, replaceMap, resetMap,
- zoomBy, fitView, toggleTools,
+ toggleTools,
  addMark, renameMark, sizeMark, deleteMark, deselectMark, clearMarks,
  unlockPawn, setPawnCode, clearPawnCode, digitsOnly
  });
