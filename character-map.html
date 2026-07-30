@@ -1,0 +1,1252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>The Edge of the World - Character Map</title>
+<!--
+  ASA / Thelmia character map. Deploys the same way as the combat calculator:
+  a Cloudflare Pages Function at the STORAGE_ENDPOINT path below reads and writes
+  one JSON blob in KV. Until that exists the tool still runs, but changes are not
+  shared (it says so in the sync line). The moderator passphrase and every
+  permission check live in the /map-state Function, not in this file.
+-->
+<style>
+ :root {
+   --font-sans: Arial, 'MS Gothic', sans-serif;
+   --ink: #000;
+   --ink-2: #222;
+   --ink-3: #666;
+   --line: #444;
+   --line-2: #888;
+   --panel: #d4d4d4;
+   --field: #f0f0f0;
+   --danger: #cc0000;
+   --warn: #b35900;
+   --accent: #6a4fb0;
+ }
+ * { box-sizing: border-box; margin: 0; padding: 0; }
+ html, body { height: 100%; }
+ body { font-family: var(--font-sans); color: var(--ink); background: #bdbdbd; padding: 10px; }
+
+ .panel { padding: 12px; background: var(--panel); border: 2px solid var(--line); max-width: 1760px; margin: 0 auto; }
+ .panel-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+
+ .section { background: var(--panel); border: none; border-top: 1.5px solid var(--line); padding: 12px 2px; }
+ .section:first-of-type { border-top: none; }
+ .section.acc-add { border-left: 4px solid #008000; padding-left: 12px; }
+ .section.acc-mod { border-left: 4px solid var(--danger); padding: 8px 2px 8px 12px; }
+ .acc-mod .section-title { font-size: 10px; margin-bottom: 6px; }
+ .acc-mod .bar { gap: 6px; margin-bottom: 6px; }
+ .acc-mod .bar:last-child { margin-bottom: 0; }
+ .acc-mod button { padding: 3px 8px; font-size: 10px; }
+ .acc-mod .act-btn { padding: 3px 12px; }
+ .acc-mod input[type="text"], .acc-mod input[type="password"] { padding: 4px 6px; font-size: 11px; }
+ .section.acc-map { border-left: 4px solid var(--line); padding-left: 12px; }
+ .section-title { font-size: 11px; font-weight: bold; color: var(--ink-2); text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 10px; }
+ .note { font-size: 12px; color: var(--ink-2); margin-bottom: 10px; line-height: 1.5; }
+ .note.small { font-size: 11px; color: var(--ink-3); }
+
+ select, input[type="number"], input[type="text"], input[type="password"] {
+   font-family: var(--font-sans); border: 1px solid var(--line-2); background: var(--field);
+   color: #000; border-radius: 0; padding: 5px 7px; font-size: 12px;
+ }
+ button {
+   font-family: var(--font-sans); border: 1px solid #555; background: #ddd; color: #000;
+   border-radius: 0; padding: 4px 10px; font-size: 11px; letter-spacing: 0.04em; cursor: pointer;
+ }
+ button:hover { background: #ccc; }
+ button:disabled { opacity: 0.45; cursor: default; }
+ .act-btn { background: var(--line); color: #fff; border-color: #222; font-weight: bold; padding: 5px 16px; }
+ .act-btn:hover { background: #2c2c2c; }
+ .btn-danger { background: #f4dede; border-color: var(--danger); color: #8a1010; font-weight: bold; }
+ .btn-danger:hover { background: #eec9c9; }
+
+ .bar { display: flex; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; align-items: center; }
+ .bar label { font-size: 11px; color: var(--ink-2); display: flex; align-items: center; gap: 5px; white-space: nowrap; }
+ .spacer { flex: 1; }
+ .hint { font-size: 11px; color: var(--ink-3); font-style: italic; }
+
+ /* file input styled as a button */
+ .file-btn { position: relative; overflow: hidden; display: inline-block; }
+ .file-btn input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; font-size: 40px; }
+ .thumb-preview { width: 34px; height: 34px; border-radius: 50%; border: 2px solid var(--line); object-fit: cover; background: #fff; display: none; }
+
+ /* ── Map stage ── */
+ .stage-wrap { border: 2px solid var(--line); background: #cfc6b4; margin-top: 4px; }
+ #stage { position: relative; width: 100%; height: 84vh; min-height: 560px; overflow: hidden;
+   cursor: grab; touch-action: none; background:
+   repeating-linear-gradient(45deg, #c9c0ad 0 12px, #cbc2af 12px 24px); }
+ #stage.panning { cursor: grabbing; }
+ #layer { position: absolute; top: 0; left: 0; transform-origin: 0 0; will-change: transform; }
+ #map-img { display: block; user-select: none; -webkit-user-drag: none; box-shadow: 0 0 0 1px #0003; }
+
+ .pawn { position: absolute; transform: translate(-50%, -50%); text-align: center; cursor: grab;
+   user-select: none; -webkit-user-drag: none; }
+ .pawn.dragging { cursor: grabbing; z-index: 999; }
+ .pawn-disc { width: 100%; height: 100%; border-radius: 50%; border: 3px solid #2c2317;
+   object-fit: cover; background: #efe7d4; box-shadow: 0 2px 5px #0006; display: block; }
+ .pawn.mine .pawn-disc { border-color: #1c4f86; }
+ .pawn.selected .pawn-disc { border-color: var(--accent); box-shadow: 0 0 0 3px #6a4fb066, 0 2px 5px #0006; }
+ .pawn-name { margin-top: 2px; font-size: 11px; font-weight: bold; color: #2c2317;
+   background: #efe7d4cc; border: 1px solid #2c231766; padding: 0 4px; display: inline-block;
+   white-space: nowrap; max-width: 140px; overflow: hidden; text-overflow: ellipsis; }
+ .pawn.selected .pawn-name { background: #efe7d4; border-color: var(--accent); }
+ #unlock-bar { display: none; }
+ #unlock-bar.show { display: flex; }
+ .editor.needs-code #pawn-controls { display: none; }
+
+ /* zoom cluster overlaid on the stage */
+ .zoom-cluster { position: absolute; right: 8px; bottom: 8px; display: flex; flex-direction: column; gap: 4px; z-index: 50; }
+ .zoom-cluster button { width: 34px; height: 30px; font-size: 15px; background: #eee; }
+
+ /* roster chips */
+ .roster { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+ .chip { display: flex; align-items: center; gap: 6px; font-size: 11px; padding: 3px 8px 3px 3px;
+   border: 1px solid var(--line-2); background: var(--field); cursor: pointer; }
+ .chip:hover { background: #e6e6e6; }
+ .chip.selected { background: var(--line); color: #fff; border-color: #222; }
+ .chip.selected .chip-mini { border-color: #fff; }
+ .chip-mini { width: 20px; height: 20px; border-radius: 50%; object-fit: cover; border: 1px solid var(--line); background: #fff; }
+ .empty { font-size: 11px; color: var(--ink-3); font-style: italic; padding: 4px 0; }
+
+ /* selected-pawn editor */
+ .editor { display: none; margin-top: 10px; padding: 10px; border: 1px solid var(--line-2); background: #e7e7e7; }
+ .editor.show { display: block; }
+ .editor .bar { margin-bottom: 6px; }
+ .editor-title { font-size: 11px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 8px; color: var(--ink-2); }
+
+ .mod-panel { display: none; }
+ .mod-panel.show { display: block; }
+ .badge { font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase; background: var(--danger);
+   color: #fff; padding: 1px 6px; vertical-align: 2px; }
+
+ .sync { font-size: 11px; margin-top: 8px; padding-top: 8px; border-top: 1px solid #bbb; color: var(--ink-3); }
+ .sync.saving { color: var(--warn); }
+ .sync.saved { color: #008000; }
+ .sync.error { color: var(--danger); }
+ .seg { display: inline-flex; border: 1px solid var(--line-2); }
+ .seg button { border: none; border-right: 1px solid var(--line-2); background: var(--field); padding: 4px 9px; }
+ .seg button:last-child { border-right: none; }
+ .seg button.on { background: var(--line); color: #fff; }
+
+ /* ── Moderator markers: labels and icons placed on the map ── */
+ .mark-tools { border-top: 1px dashed #aaa; padding-top: 6px; margin-top: 2px; }
+ .mini-title { font-size: 10px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.1em; color: var(--ink-2); }
+ .icon-strip { display: flex; gap: 3px; flex-wrap: wrap; }
+ .icon-pick { width: 28px; height: 28px; padding: 0; display: inline-flex; align-items: center;
+   justify-content: center; background: var(--field); color: var(--ink-2); }
+ .icon-pick svg { width: 20px; height: 20px; display: block; }
+ .icon-pick.on { background: var(--line); color: #fff; border-color: #222; }
+ .icon-pick.none-pick { font-size: 9px; width: auto; padding: 0 7px; letter-spacing: 0.06em; }
+ .mark-editor { display: none; border-top: 1px dashed #aaa; padding-top: 6px; margin-top: 6px; }
+ .mark-editor.show { display: block; }
+
+ .mark { position: absolute; transform: translate(-50%, -50%); text-align: center;
+   pointer-events: none; user-select: none; color: #2c2317; }
+ body.is-mod .mark { pointer-events: auto; cursor: grab; }
+ body.is-mod .mark.dragging { cursor: grabbing; z-index: 998; }
+ .mark-glyph { display: block; margin: 0 auto; filter: drop-shadow(0 0 2px #efe7d4) drop-shadow(0 0 4px #efe7d4); }
+ .mark-label { font-weight: bold; letter-spacing: 0.06em; line-height: 1.15; white-space: nowrap;
+   text-shadow: 0 0 3px #efe7d4, 0 0 3px #efe7d4, 0 0 6px #efe7d4, 0 1px 0 #efe7d4; }
+ .mark.selected { color: var(--accent); }
+ .mark.selected .mark-label { text-shadow: 0 0 3px #fff, 0 0 6px #fff; }
+
+ /* board-only view: hides everything used to add or edit characters */
+ body.tools-hidden .acc-add,
+ body.tools-hidden #editor { display: none !important; }
+ body.tools-hidden .acc-map { border-left-color: var(--line); }
+ body.tools-hidden .section.acc-map { border-top: none; }
+</style>
+</head>
+<body>
+<div class="panel">
+ <div class="panel-head">
+   <button id="tools-btn" onclick="toggleTools()">Hide character tools</button>
+   <span class="spacer"></span>
+   <span id="mod-indicator"></span>
+ </div>
+
+ <!-- ADD A PAWN -->
+ <div class="section acc-add">
+   <div class="section-title">Add a character</div>
+   <div class="bar">
+     <input type="text" id="new-name" placeholder="Character name" maxlength="40"
+            onkeydown="if(event.key==='Enter')addPawn()" />
+     <span class="file-btn"><button type="button">Choose picture…</button>
+       <input type="file" id="new-img" accept="image/*" onchange="previewNew(this)" /></span>
+     <img id="new-preview" class="thumb-preview" alt="" />
+     <input type="text" id="new-code" placeholder="Lock code (optional)" maxlength="12"
+            inputmode="numeric" autocomplete="off" oninput="digitsOnly(this)"
+            onkeydown="if(event.key==='Enter')addPawn()" style="width:130px;" />
+     <button class="act-btn" onclick="addPawn()">Place on map</button>
+   </div>
+   <div class="note small">Pictures are cropped to a round token and resampled before they are shared. A lock code keeps other players from moving or editing your character. One character per person; moderators can seat extras. Everyone sharing the link sees the same board.</div>
+   <div class="roster" id="roster"></div>
+ </div>
+
+ <!-- SELECTED PAWN EDITOR -->
+ <div class="editor" id="editor">
+   <div class="editor-title">Selected pawn</div>
+
+   <div class="bar" id="unlock-bar">
+     <span class="hint">This character is held by a lock code.</span>
+     <input type="text" id="unlock-code" placeholder="Code" maxlength="12"
+            inputmode="numeric" autocomplete="off" oninput="digitsOnly(this)"
+            onkeydown="if(event.key==='Enter')unlockPawn()" style="width:110px;" />
+     <button onclick="unlockPawn()">Unlock</button>
+     <span class="hint" id="unlock-msg"></span>
+   </div>
+
+   <div id="pawn-controls">
+   <div class="bar">
+     <input type="text" id="edit-name" placeholder="Name" maxlength="40"
+            oninput="renameSelected(this.value)" style="min-width:160px;" />
+     <label>Size
+       <span class="seg" id="size-seg">
+         <button data-size="46" onclick="sizeSelected(46)">S</button>
+         <button data-size="64" onclick="sizeSelected(64)">M</button>
+         <button data-size="88" onclick="sizeSelected(88)">L</button>
+         <button data-size="120" onclick="sizeSelected(120)">XL</button>
+       </span>
+     </label>
+     <button class="btn-danger" onclick="deleteSelected()">Remove</button>
+     <span class="spacer"></span>
+     <span class="hint" id="edit-owner"></span>
+   </div>
+   <div class="bar">
+     <input type="text" id="edit-code" placeholder="Lock code" maxlength="12"
+            inputmode="numeric" autocomplete="off" oninput="digitsOnly(this)"
+            onkeydown="if(event.key==='Enter')setPawnCode()" style="width:110px;" />
+     <button onclick="setPawnCode()" id="set-code-btn">Set code</button>
+     <button onclick="clearPawnCode()" id="clear-code-btn">Remove code</button>
+     <span class="hint" id="code-msg"></span>
+   </div>
+   </div>
+ </div>
+
+ <!-- MAP -->
+ <div class="section acc-map">
+   <div class="section-title">The board</div>
+   <div class="stage-wrap">
+     <div id="stage">
+       <div id="layer">
+         <img id="map-img" alt="" draggable="false" />
+       </div>
+       <div class="zoom-cluster">
+         <button onclick="zoomBy(1.25)" title="Zoom in">+</button>
+         <button onclick="zoomBy(0.8)" title="Zoom out">&minus;</button>
+         <button onclick="fitView()" title="Fit map" style="font-size:11px;">FIT</button>
+       </div>
+     </div>
+   </div>
+   <div class="note small" style="margin-top:6px;">Drag empty map to pan, scroll to zoom, drag a pawn to move it, click a pawn to select it.</div>
+ </div>
+
+ <!-- MODERATOR -->
+ <div class="section acc-mod">
+   <div class="section-title">Moderator</div>
+   <div id="mod-locked">
+     <div class="bar">
+       <input type="password" id="mod-pin" placeholder="Moderator passphrase"
+              onkeydown="if(event.key==='Enter')tryUnlockMod()" style="min-width:170px;" />
+       <button onclick="tryUnlockMod()">Unlock controls</button>
+       <span class="hint" id="mod-msg"></span>
+     </div>
+   </div>
+   <div class="mod-panel" id="mod-panel">
+     <div class="bar">
+       <button class="btn-danger" onclick="clearBoard()">Clear pawns</button>
+       <span class="spacer"></span>
+       <span class="file-btn"><button type="button">Replace map image…</button>
+         <input type="file" id="map-file" accept="image/*" onchange="replaceMap(this)" /></span>
+       <button onclick="resetMap()">Restore default map</button>
+       <button onclick="lockMod()">Lock controls</button>
+     </div>
+
+     <div class="mark-tools">
+       <div class="bar">
+         <input type="text" id="mark-text" placeholder="Label text (optional)" maxlength="48"
+                onkeydown="if(event.key==='Enter')addMark()" style="min-width:190px;" />
+         <button class="act-btn" onclick="addMark()">Place marker</button>
+         <button onclick="clearMarks()">Clear markers</button>
+       </div>
+       <div class="icon-strip" id="icon-strip"></div>
+     </div>
+
+     <div class="mark-editor" id="mark-editor">
+       <div class="bar">
+         <span class="mini-title">Marker</span>
+         <input type="text" id="mark-edit-text" placeholder="Label text" maxlength="48"
+                oninput="renameMark(this.value)" style="min-width:170px;" />
+         <span class="seg" id="mark-size-seg">
+           <button data-size="32" onclick="sizeMark(32)">S</button>
+           <button data-size="48" onclick="sizeMark(48)">M</button>
+           <button data-size="72" onclick="sizeMark(72)">L</button>
+           <button data-size="104" onclick="sizeMark(104)">XL</button>
+         </span>
+         <button class="btn-danger" onclick="deleteMark()">Remove marker</button>
+         <button onclick="deselectMark()">Done</button>
+       </div>
+       <div class="icon-strip" id="icon-strip-edit"></div>
+     </div>
+   </div>
+ </div>
+
+ <div class="sync" id="sync">Starting up…</div>
+</div>
+
+<script>
+(function () {
+ 'use strict';
+
+ /* ══ CONFIG ══════════════════════════════════════════════════════ */
+ const STORAGE_ENDPOINT = '/map-state';      /* Cloudflare Pages Function (KV), like /combat-state */
+ const DEFAULT_MAP = 'edge-of-the-world.jpg'; /* sibling file shipped with this page */
+ const POLL_MS = 4000;                        /* how often to pull others' changes */
+ const THUMB = 320;                           /* stored token image is up to THUMB x THUMB px */
+ const TOKEN_Q = 0.92;                        /* encoder quality for stored tokens */
+
+ /* ══ MARKER ICONS ════════════════════════════════════════════════
+    Inline SVG on a 44x44 box at a consistent 2.2 stroke, same convention as
+    the calendar sigils. currentColor lets a marker recolour when selected. */
+ const ICONS = {
+ house:    'M10 24 L22 13 L34 24 M13 22 V34 H31 V22 M10 34 H34',
+ city:     'M10 34 V22 H16 V34 M19 34 V15 H25 V34 M28 34 V25 H34 V34 M8 34 H36',
+ castle:   'M12 34 V18 H15 V14 H19 V18 H25 V14 H29 V18 H32 V34 M12 34 H32 M20 34 V27 H24 V34',
+ ruin:     'M14 34 V19 L18 23 M22 34 V13 M26 34 V23 L30 27 M10 34 H34',
+ tent:     'M22 11 L10 34 H34 Z M22 11 V34',
+ temple:   'M10 18 L22 11 L34 18 M13 19 V30 M19 19 V30 M25 19 V30 M31 19 V30 M10 30 H34 M8 34 H36',
+ swords:   'M11 33 L29 11 M33 33 L15 11 M8 27 L14 33 M36 27 L30 33',
+ danger:   'M22 10 L35 33 H9 Z M22 18 V25 M22 29 V29.4',
+ anchor:   'M22 15 V33 M13 24 H31 M11 26 A11 11 0 0 0 33 26 M22 8 A3.5 3.5 0 1 0 22 15 A3.5 3.5 0 1 0 22 8',
+ mountain: 'M7 32 L18 16 L24 25 L28 20 L37 32 Z M14 24 L18 21 L21 24',
+ tree:     'M22 8 L14 21 H30 Z M22 16 L11 31 H33 Z M22 31 V37',
+ star:     'M22 9 L26 19 L36 20 L28 26 L31 36 L22 30 L13 36 L16 26 L8 20 L18 19 Z',
+ flag:     'M14 35 V9 M14 10 H31 L26 16 L31 22 H14',
+ ring:     'M22 22 m-11 0 a11 11 0 1 0 22 0 a11 11 0 1 0 -22 0 M22 17 V27 M17 22 H27'
+ };
+ const ICON_ORDER = ['house','city','castle','ruin','tent','temple','swords','danger','anchor','mountain','tree','star','flag','ring'];
+ function iconSvg(key) {
+ const d = ICONS[key];
+ if (!d) return '';
+ return '<svg viewBox="0 0 44 44" xmlns="http://www.w3.org/2000/svg" fill="none" ' +
+ 'stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">' +
+ '<path d="' + d + '"/></svg>';
+ }
+
+ /* ══ STATE ═══════════════════════════════════════════════════════ */
+ let pawns = {};                 /* id -> { id, name, img, x, y, size, owner, protected, salt } */
+ let marks = {};                 /* id -> { id, text, icon, x, y, size }  (moderator only) */
+ let selectedMarkId = null;
+ let pendingIcon = 'house';      /* icon armed for the next Place marker */
+ let customMap = null;           /* dataURL if a moderator replaced the map, else null */
+ let selectedId = null;
+ let isMod = false;
+ let dragging = null;            /* pawn id currently being dragged */
+ let dirty = false;              /* local unsaved change pending */
+
+ /* view transform */
+ let zoom = 1, panX = 0, panY = 0;
+ let mapW = 2000, mapH = 1926;   /* replaced by the image's natural size once loaded */
+
+ const $ = id => document.getElementById(id);
+ const stage = $('stage'), layer = $('layer'), mapImg = $('map-img');
+
+ /* stable per-browser identity so people can manage their own pawns */
+ const clientId = (function () {
+ try {
+ let v = localStorage.getItem('asa-map-client');
+ if (!v) { v = 'c' + Math.random().toString(36).slice(2, 10); localStorage.setItem('asa-map-client', v); }
+ return v;
+ } catch (e) { return 'c' + Math.random().toString(36).slice(2, 10); }
+ })();
+
+ function uid() { return 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+
+ /* ══ LOCK CODES ══════════════════════════════════════════════════
+    A pawn may carry a numeric code. The code itself is never stored or sent:
+    the board holds a random salt and a PBKDF2 hash, and a browser proves it
+    knows the code by re-deriving the same hash. Read the note in the editor
+    before relying on this. It raises the cost of meddling, it does not make
+    the board tamper proof, because every check still runs on the client. */
+ const KDF_ITER = 150000;
+ const hasSubtle = !!(window.crypto && window.crypto.subtle && window.crypto.subtle.importKey);
+
+ function randomSalt() {
+ const b = new Uint8Array(16);
+ if (window.crypto && window.crypto.getRandomValues) window.crypto.getRandomValues(b);
+ else for (let i = 0; i < b.length; i++) b[i] = Math.floor(Math.random() * 256);
+ return hex(b);
+ }
+ function hex(bytes) {
+ return Array.prototype.map.call(bytes, b => ('0' + b.toString(16)).slice(-2)).join('');
+ }
+ function unhex(str) {
+ const out = new Uint8Array(str.length / 2);
+ for (let i = 0; i < out.length; i++) out[i] = parseInt(str.substr(i * 2, 2), 16);
+ return out;
+ }
+ async function deriveProof(code, salt) {
+ if (!hasSubtle) throw new Error('nocrypto');
+ const enc = new TextEncoder();
+ const key = await window.crypto.subtle.importKey('raw', enc.encode(code), 'PBKDF2', false, ['deriveBits']);
+ const bits = await window.crypto.subtle.deriveBits(
+ { name: 'PBKDF2', salt: unhex(salt), iterations: KDF_ITER, hash: 'SHA-256' }, key, 256);
+ return hex(new Uint8Array(bits));
+ }
+ function digitsOnly(input) { input.value = (input.value || '').replace(/[^0-9]/g, ''); }
+
+ function isProtected(p) { return !!(p && p.protected); }
+ function isUnlocked(p) { return !isProtected(p) || !!proofs[p.id]; }
+
+ /* ══ SYNC STATUS ═════════════════════════════════════════════════ */
+ function setSync(kind, msg) {
+ const el = $('sync');
+ el.className = 'sync ' + kind;
+ el.textContent = msg;
+ }
+
+ /* ══ IMAGE HANDLING ══════════════════════════════════════════════
+    Uploaded pictures are cropped square and resampled down to a token. The
+    downscale is done in halving steps because a single large drawImage jump
+    aliases badly, and the result is encoded as WebP where the browser has it
+    (roughly a third the bytes of JPEG at the same quality) with a JPEG
+    fallback. Small sources are never upscaled. */
+ function smoothCtx(canvas) {
+ const ctx = canvas.getContext('2d');
+ ctx.imageSmoothingEnabled = true;
+ try { ctx.imageSmoothingQuality = 'high'; } catch (e) {}
+ return ctx;
+ }
+ function squareCanvas(px) {
+ const c = document.createElement('canvas');
+ c.width = px; c.height = px;
+ return c;
+ }
+ function encodeToken(canvas) {
+ try {
+ const webp = canvas.toDataURL('image/webp', TOKEN_Q);
+ if (webp.slice(0, 15) === 'data:image/webp') return webp;
+ } catch (e) {}
+ return canvas.toDataURL('image/jpeg', TOKEN_Q);
+ }
+ function resampleSquare(img, sx, sy, s, target) {
+ /* first hop: crop the square out of the source at full size */
+ let cur = squareCanvas(s);
+ smoothCtx(cur).drawImage(img, sx, sy, s, s, 0, 0, s, s);
+ let cw = s;
+ /* halve until one more step would undershoot the target */
+ while (cw > target * 2) {
+ const nw = Math.max(target, Math.round(cw / 2));
+ const next = squareCanvas(nw);
+ smoothCtx(next).drawImage(cur, 0, 0, cw, cw, 0, 0, nw, nw);
+ cur = next; cw = nw;
+ }
+ if (cw === target) return cur;
+ const out = squareCanvas(target);
+ smoothCtx(out).drawImage(cur, 0, 0, cw, cw, 0, 0, target, target);
+ return out;
+ }
+ function fileToToken(file, cb) {
+ const reader = new FileReader();
+ reader.onload = () => {
+ const img = new Image();
+ img.onload = () => {
+ const s = Math.min(img.width, img.height);
+ const sx = (img.width - s) / 2, sy = (img.height - s) / 2;
+ const target = Math.max(64, Math.min(THUMB, s));   /* never upscale a small avatar */
+ cb(encodeToken(resampleSquare(img, sx, sy, s, target)));
+ };
+ img.onerror = () => cb(null);
+ img.src = reader.result;
+ };
+ reader.onerror = () => cb(null);
+ reader.readAsDataURL(file);
+ }
+
+ let pendingToken = null;
+ function previewNew(input) {
+ const f = input.files && input.files[0];
+ if (!f) return;
+ fileToToken(f, dataUrl => {
+ pendingToken = dataUrl;
+ const p = $('new-preview');
+ if (dataUrl) { p.src = dataUrl; p.style.display = 'inline-block'; }
+ });
+ }
+
+ /* ══ ADD / EDIT PAWNS ════════════════════════════════════════════ */
+ async function addPawn() {
+ if (!isMod) {
+ const mine = Object.keys(pawns).filter(k => pawns[k].owner === clientId || pawns[k].yours);
+ if (mine.length) {
+ flashMod('One character per person. Remove yours before adding another.');
+ return;
+ }
+ }
+ const name = ($('new-name').value || '').trim() || 'Unnamed';
+ const code = ($('new-code').value || '').trim();
+ let setCode = null;
+ if (code) {
+ if (code.length < 3) { flashMod('A lock code needs at least 3 digits.'); return; }
+ if (!hasSubtle) { flashMod('Lock codes need a https connection. Open the deployed page, not a local file.'); return; }
+ const salt = randomSalt();
+ setCode = { salt: salt, proof: await deriveProof(code, salt) };
+ }
+ /* drop the new pawn at the centre of the current view */
+ const cx = stage.clientWidth / 2, cy = stage.clientHeight / 2;
+ const mx = (cx - panX) / zoom, my = (cy - panY) / zoom;
+ const id = uid();
+ pawns[id] = {
+ id, name,
+ img: pendingToken || '',
+ x: clamp01(mx / mapW), y: clamp01(my / mapH),
+ size: 64, owner: clientId,
+ protected: !!setCode, salt: setCode ? setCode.salt : null
+ };
+ if (setCode) rememberProof(id, setCode.proof);   /* the browser that set it starts unlocked */
+ pendingToken = null;
+ $('new-name').value = '';
+ $('new-code').value = '';
+ $('new-img').value = '';
+ $('new-preview').style.display = 'none';
+ selectedId = id;
+ selectedMarkId = null;
+ render();
+ /* a new code has to ride along with the pawn that carries it */
+ if (setCode) pushOp({ op: 'pawn-put', pawn: pawns[id], setCode: setCode });
+ else touchPawn(id);
+ }
+
+ function canMove(p) {
+ if (isMod) return true;
+ return isUnlocked(p);                    /* coded characters move only for the code holder */
+ }
+ function canEdit(p) {
+ if (isMod) return true;
+ if (isProtected(p)) return isUnlocked(p);
+ /* uncoded: this browser placed it, or the server recognises the connection */
+ return p.owner === clientId || !!p.yours;
+ }
+
+ function selectPawn(id) { selectedId = id; selectedMarkId = null; render(); }
+
+ function renameSelected(v) {
+ const p = pawns[selectedId]; if (!p || !canEdit(p)) return;
+ p.name = v.slice(0, 40);
+ /* light-touch render: just update labels, keep focus in the field */
+ document.querySelectorAll('.pawn[data-id="' + selectedId + '"] .pawn-name').forEach(el => el.textContent = p.name || 'Unnamed');
+ document.querySelectorAll('.chip[data-id="' + selectedId + '"] .chip-label').forEach(el => el.textContent = p.name || 'Unnamed');
+ touchPawn(p.id);
+ }
+ function sizeSelected(px) {
+ const p = pawns[selectedId]; if (!p || !canEdit(p)) return;
+ p.size = px; render(); touchPawn(p.id);
+ }
+ function deleteSelected() {
+ const p = pawns[selectedId]; if (!p) return;
+ if (!canEdit(p)) { flashMod("That pawn belongs to someone else. A moderator can remove it."); return; }
+ const gone = selectedId;
+ pushOp({ op: 'pawn-delete', id: gone });
+ delete pawns[gone]; selectedId = null; render();
+ }
+
+ /* ══ LOCK CODE ACTIONS ═══════════════════════════════════════════ */
+ async function unlockPawn() {
+ const p = pawns[selectedId]; if (!p || !isProtected(p) || !p.salt) return;
+ const code = ($('unlock-code').value || '').trim();
+ if (!code) return;
+ const msg = $('unlock-msg');
+ if (!hasSubtle) { msg.textContent = 'Needs a https connection to check the code.'; return; }
+ msg.textContent = 'Checking…';
+ let proof;
+ try { proof = await deriveProof(code, p.salt); }
+ catch (e) { msg.textContent = 'Could not check the code here.'; return; }
+ try {
+ const res = await fetch(STORAGE_ENDPOINT, {
+ method: 'POST', headers: { 'Content-Type': 'application/json' },
+ body: JSON.stringify({ op: 'verify', id: p.id, proof: proof })
+ });
+ const data = await res.json().catch(() => null);
+ if (res.ok && data && data.ok) {
+ rememberProof(p.id, proof);
+ $('unlock-code').value = '';
+ msg.textContent = '';
+ render();
+ } else {
+ msg.textContent = (data && data.error) ? data.error : 'Incorrect code.';
+ }
+ } catch (e) {
+ msg.textContent = 'Could not reach the server.';
+ }
+ }
+
+ async function setPawnCode() {
+ const p = pawns[selectedId]; if (!p || !canEdit(p)) return;
+ const code = ($('edit-code').value || '').trim();
+ const msg = $('code-msg');
+ if (code.length < 3) { msg.textContent = 'Use at least 3 digits.'; return; }
+ if (!hasSubtle) { msg.textContent = 'Lock codes need a https connection.'; return; }
+ msg.textContent = 'Setting…';
+ const hadProof = proofs[p.id] || null;
+ const salt = randomSalt();
+ const proof = await deriveProof(code, salt);
+ p.protected = true; p.salt = salt;
+ rememberProof(p.id, proof);
+ $('edit-code').value = '';
+ msg.textContent = 'Code set.';
+ setTimeout(() => { if ($('code-msg').textContent === 'Code set.') $('code-msg').textContent = ''; }, 2000);
+ pushOp({ op: 'pawn-put', pawn: p, setCode: { salt: salt, proof: proof },
+ authProof: hadProof, id: p.id });
+ render();
+ }
+
+ function clearPawnCode() {
+ const p = pawns[selectedId]; if (!p || !canEdit(p) || !isProtected(p)) return;
+ const hadProof = proofs[p.id] || null;
+ p.protected = false; p.salt = null;
+ $('code-msg').textContent = '';
+ pushOp({ op: 'pawn-put', pawn: p, clearCode: true, id: p.id, authProof: hadProof });
+ render();
+ }
+
+ /* ══ MODERATION ══════════════════════════════════════════════════ */
+ async function tryUnlockMod() {
+ const v = ($('mod-pin').value || '');
+ if (!v) return;
+ $('mod-msg').textContent = 'Checking…';
+ try {
+ const res = await fetch(STORAGE_ENDPOINT, {
+ method: 'POST', headers: { 'Content-Type': 'application/json' },
+ body: JSON.stringify({ op: 'mod-unlock', passphrase: v })
+ });
+ const data = await res.json().catch(() => null);
+ if (res.ok && data && data.token) {
+ rememberToken(data.token);
+ isMod = true;
+ $('mod-pin').value = '';
+ $('mod-msg').textContent = '';
+ applyModUi(); render();
+ await loadState(false);
+ } else {
+ $('mod-msg').textContent = (data && data.error) ? data.error : 'Incorrect passphrase.';
+ }
+ } catch (e) {
+ $('mod-msg').textContent = 'Could not reach the server.';
+ }
+ }
+ function lockMod() { rememberToken(null); isMod = false; applyModUi(); render(); }
+ function applyModUi() {
+ if (!isMod) selectedMarkId = null;
+ document.body.classList.toggle('is-mod', isMod);
+ $('mod-panel').classList.toggle('show', isMod);
+ $('mod-locked').style.display = isMod ? 'none' : '';
+ $('mod-msg').textContent = '';
+ $('mod-indicator').innerHTML = isMod ? '<span class="badge">Moderator</span>' : '';
+ }
+ function flashMod(msg) { setSync('error', msg); setTimeout(() => refreshSyncIdle(), 2500); }
+
+ /* ══ MARKERS (moderator) ═════════════════════════════════════════
+    A marker is a label, an icon, or both. Players see them on the board but
+    cannot select or move them (CSS keeps them click-through unless is-mod). */
+ function buildIconStrips() {
+ const cells = key =>
+ '<button class="icon-pick" data-icon="' + key + '" title="' + key + '">' + iconSvg(key) + '</button>';
+ const none = '<button class="icon-pick none-pick" data-icon="none" title="Label only">TEXT</button>';
+ $('icon-strip').innerHTML = none + ICON_ORDER.map(cells).join('');
+ $('icon-strip-edit').innerHTML = none + ICON_ORDER.map(cells).join('');
+ $('icon-strip').querySelectorAll('.icon-pick').forEach(b => {
+ b.addEventListener('click', () => { pendingIcon = b.dataset.icon; paintIconStrip('icon-strip', pendingIcon); });
+ });
+ $('icon-strip-edit').querySelectorAll('.icon-pick').forEach(b => {
+ b.addEventListener('click', () => setMarkIcon(b.dataset.icon));
+ });
+ paintIconStrip('icon-strip', pendingIcon);
+ }
+ function paintIconStrip(stripId, active) {
+ $(stripId).querySelectorAll('.icon-pick').forEach(b => b.classList.toggle('on', b.dataset.icon === active));
+ }
+
+ function addMark() {
+ if (!isMod) return;
+ const text = ($('mark-text').value || '').trim();
+ if (!text && pendingIcon === 'none') { flashMod('Give the marker some text or pick an icon.'); return; }
+ const cx = stage.clientWidth / 2, cy = stage.clientHeight / 2;
+ const mx = (cx - panX) / zoom, my = (cy - panY) / zoom;
+ const id = 'm' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+ marks[id] = { id, text, icon: pendingIcon, x: clamp01(mx / mapW), y: clamp01(my / mapH), size: 48 };
+ $('mark-text').value = '';
+ selectMark(id);
+ touchMark(id);
+ }
+ function selectMark(id) { selectedMarkId = id; selectedId = null; render(); }
+ function deselectMark() { selectedMarkId = null; render(); }
+ function renameMark(v) {
+ const m = marks[selectedMarkId]; if (!m || !isMod) return;
+ m.text = v.slice(0, 48);
+ document.querySelectorAll('.mark[data-id="' + selectedMarkId + '"] .mark-label').forEach(el => {
+ el.textContent = m.text;
+ el.style.display = m.text ? 'block' : 'none';
+ });
+ touchMark(m.id);
+ }
+ function sizeMark(px) {
+ const m = marks[selectedMarkId]; if (!m || !isMod) return;
+ m.size = px; render(); touchMark(m.id);
+ }
+ function setMarkIcon(key) {
+ const m = marks[selectedMarkId]; if (!m || !isMod) return;
+ m.icon = key; render(); touchMark(m.id);
+ }
+ function deleteMark() {
+ if (!isMod || !marks[selectedMarkId]) return;
+ pushOp({ op: 'mark-delete', id: selectedMarkId });
+ delete marks[selectedMarkId]; selectedMarkId = null; render();
+ }
+ function clearMarks() {
+ if (!isMod) return;
+ if (!confirmInline('Remove every label and icon from the map?')) return;
+ pushOp({ op: 'marks-clear' });
+ marks = {}; selectedMarkId = null; render();
+ }
+
+ /* ══ BOARD-ONLY VIEW ═════════════════════════════════════════════
+    Hides the add-a-character section and the selected-pawn editor. The board
+    itself stays fully interactive, and the choice is remembered per browser. */
+ let toolsHidden = (function () {
+ try { return localStorage.getItem('asa-map-tools-hidden') === '1'; } catch (e) { return false; }
+ })();
+ function applyToolsUi() {
+ document.body.classList.toggle('tools-hidden', toolsHidden);
+ $('tools-btn').textContent = toolsHidden ? 'Show character tools' : 'Hide character tools';
+ }
+ function toggleTools() {
+ toolsHidden = !toolsHidden;
+ try { localStorage.setItem('asa-map-tools-hidden', toolsHidden ? '1' : '0'); } catch (e) {}
+ applyToolsUi();
+ }
+
+ function clearBoard() {
+ if (!isMod) return;
+ if (!confirmInline('Remove every pawn from the board?')) return;
+ pushOp({ op: 'pawns-clear' });
+ pawns = {}; selectedId = null; render();
+ }
+ /* confirm() is blocked in some embeds; fall back to a simple window.confirm guarded */
+ function confirmInline(msg) { try { return window.confirm(msg); } catch (e) { return true; } }
+
+ function replaceMap(input) {
+ if (!isMod) return;
+ const f = input.files && input.files[0]; if (!f) return;
+ const reader = new FileReader();
+ reader.onload = () => {
+ /* downscale a replacement map to keep the shared blob reasonable */
+ const img = new Image();
+ img.onload = () => {
+ const maxW = 2000;
+ const scale = Math.min(1, maxW / img.width);
+ const c = document.createElement('canvas');
+ c.width = Math.round(img.width * scale); c.height = Math.round(img.height * scale);
+ c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+ customMap = c.toDataURL('image/jpeg', 0.85);
+ loadMapSrc(customMap);
+ pushOp({ op: 'map-set', map: customMap });
+ };
+ img.src = reader.result;
+ };
+ reader.readAsDataURL(f);
+ input.value = '';
+ }
+ function resetMap() {
+ if (!isMod) return;
+ customMap = null;
+ loadMapSrc(DEFAULT_MAP);
+ pushOp({ op: 'map-set', map: null });
+ }
+
+ /* ══ MAP + VIEW ══════════════════════════════════════════════════ */
+ function loadMapSrc(src) {
+ mapImg.onload = () => {
+ mapW = mapImg.naturalWidth || mapW;
+ mapH = mapImg.naturalHeight || mapH;
+ mapImg.style.width = mapW + 'px';
+ mapImg.style.height = mapH + 'px';
+ fitView();
+ render();
+ };
+ mapImg.onerror = () => { setSync('error', 'Map image "' + src + '" could not load. Keep it beside this page.'); };
+ mapImg.src = src;
+ }
+
+ function applyTransform() {
+ layer.style.transform = 'translate(' + panX + 'px,' + panY + 'px) scale(' + zoom + ')';
+ }
+ function fitView() {
+ const sw = stage.clientWidth, sh = stage.clientHeight;
+ /* At boot the stage may not have laid out yet (width 0); retry rather than
+    computing a scale of 0, which would hide the whole map. */
+ if (!sw || !sh) { setTimeout(fitView, 60); return; }
+ zoom = clamp(Math.min(sw / mapW, sh / mapH), 0.02, 8) || 0.5;
+ panX = (sw - mapW * zoom) / 2;
+ panY = (sh - mapH * zoom) / 2;
+ applyTransform();
+ }
+ function zoomAt(cx, cy, factor) {
+ const nz = clamp(zoom * factor, 0.05, 8);
+ const mx = (cx - panX) / zoom, my = (cy - panY) / zoom;
+ zoom = nz;
+ panX = cx - mx * zoom;
+ panY = cy - my * zoom;
+ applyTransform();
+ }
+ function zoomBy(f) { zoomAt(stage.clientWidth / 2, stage.clientHeight / 2, f); }
+
+ stage.addEventListener('wheel', e => {
+ e.preventDefault();
+ const r = stage.getBoundingClientRect();
+ zoomAt(e.clientX - r.left, e.clientY - r.top, e.deltaY < 0 ? 1.12 : 0.89);
+ }, { passive: false });
+
+ /* ══ POINTER: pan vs drag-pawn ═══════════════════════════════════ */
+ let panStart = null;
+ stage.addEventListener('pointerdown', e => {
+ const pawnEl = e.target.closest('.pawn');
+ if (pawnEl) { startPawnDrag(pawnEl, e); return; }
+ const markEl = isMod ? e.target.closest('.mark') : null;
+ if (markEl) { startMarkDrag(markEl, e); return; }
+ /* pan */
+ panStart = { x: e.clientX, y: e.clientY, panX, panY };
+ stage.classList.add('panning');
+ stage.setPointerCapture(e.pointerId);
+ });
+ stage.addEventListener('pointermove', e => {
+ if (dragging) { movePawnDrag(e); return; }
+ if (draggingMark) { moveMarkDrag(e); return; }
+ if (panStart) {
+ panX = panStart.panX + (e.clientX - panStart.x);
+ panY = panStart.panY + (e.clientY - panStart.y);
+ applyTransform();
+ }
+ });
+ function endPointer(e) {
+ if (dragging) endPawnDrag();
+ if (draggingMark) endMarkDrag();
+ if (panStart) { panStart = null; stage.classList.remove('panning'); }
+ }
+
+ let draggingMark = null, markMoved = false, markOffset = null;
+ function startMarkDrag(el, e) {
+ const id = el.getAttribute('data-id');
+ const m = marks[id]; if (!m) return;
+ selectMark(id);
+ draggingMark = id; markMoved = false;
+ const r = stage.getBoundingClientRect();
+ const px = panX + m.x * mapW * zoom, py = panY + m.y * mapH * zoom;
+ markOffset = { dx: (e.clientX - r.left) - px, dy: (e.clientY - r.top) - py };
+ const live = layer.querySelector('.mark[data-id="' + id + '"]');
+ if (live) live.classList.add('dragging');
+ stage.setPointerCapture(e.pointerId);
+ }
+ function moveMarkDrag(e) {
+ const m = marks[draggingMark]; if (!m) return;
+ markMoved = true;
+ const r = stage.getBoundingClientRect();
+ const sx = (e.clientX - r.left) - markOffset.dx;
+ const sy = (e.clientY - r.top) - markOffset.dy;
+ m.x = clamp01(((sx - panX) / zoom) / mapW);
+ m.y = clamp01(((sy - panY) / zoom) / mapH);
+ positionMark(draggingMark);
+ }
+ function endMarkDrag() {
+ const el = layer.querySelector('.mark[data-id="' + draggingMark + '"]');
+ if (el) el.classList.remove('dragging');
+ if (markMoved) touchMark(draggingMark);
+ draggingMark = null; markOffset = null;
+ }
+ stage.addEventListener('pointerup', endPointer);
+ stage.addEventListener('pointercancel', endPointer);
+
+ let dragMoved = false, dragOffset = null;
+ function startPawnDrag(el, e) {
+ const id = el.getAttribute('data-id');
+ const p = pawns[id];
+ selectPawn(id);
+ if (!p || !canMove(p)) return;           /* coded characters don't move for others */
+ dragging = id; dragMoved = false;
+ const r = stage.getBoundingClientRect();
+ const px = panX + p.x * mapW * zoom, py = panY + p.y * mapH * zoom;
+ dragOffset = { dx: (e.clientX - r.left) - px, dy: (e.clientY - r.top) - py };
+ el.classList.add('dragging');
+ stage.setPointerCapture(e.pointerId);
+ }
+ function movePawnDrag(e) {
+ const p = pawns[dragging]; if (!p) return;
+ dragMoved = true;
+ const r = stage.getBoundingClientRect();
+ const sx = (e.clientX - r.left) - dragOffset.dx;
+ const sy = (e.clientY - r.top) - dragOffset.dy;
+ p.x = clamp01(((sx - panX) / zoom) / mapW);
+ p.y = clamp01(((sy - panY) / zoom) / mapH);
+ positionPawn(dragging);
+ }
+ function endPawnDrag() {
+ const el = document.querySelector('.pawn[data-id="' + dragging + '"]');
+ if (el) el.classList.remove('dragging');
+ if (dragMoved) touchPawn(dragging);
+ dragging = null; dragOffset = null;
+ }
+
+ /* ══ RENDER ══════════════════════════════════════════════════════ */
+ function positionPawn(id) {
+ const p = pawns[id]; if (!p) return;
+ const el = document.querySelector('.pawn[data-id="' + id + '"]');
+ if (!el) return;
+ el.style.left = (p.x * mapW) + 'px';
+ el.style.top = (p.y * mapH) + 'px';
+ el.style.width = (p.size || 64) + 'px';
+ const disc = el.querySelector('.pawn-disc');
+ if (disc) disc.style.height = (p.size || 64) + 'px';
+ }
+
+ function render() {
+ /* pawns live inside the transform layer so they pan and zoom with the map */
+ const existing = {};
+ layer.querySelectorAll('.pawn').forEach(el => existing[el.getAttribute('data-id')] = el);
+ Object.keys(existing).forEach(id => { if (!pawns[id]) { existing[id].remove(); delete existing[id]; } });
+
+ Object.values(pawns).forEach(p => {
+ let el = existing[p.id];
+ if (!el) {
+ el = document.createElement('div');
+ el.className = 'pawn';
+ el.setAttribute('data-id', p.id);
+ el.innerHTML = '<img class="pawn-disc" draggable="false" alt="">' +
+ '<div class="pawn-name"></div>';
+ layer.appendChild(el);
+ }
+ el.className = 'pawn' +
+ (p.owner === clientId ? ' mine' : '') +
+ (p.id === selectedId ? ' selected' : '');
+ const disc = el.querySelector('.pawn-disc');
+ if (disc.getAttribute('src') !== p.img) disc.setAttribute('src', p.img || transparentPixel());
+ el.querySelector('.pawn-name').textContent = p.name || 'Unnamed';
+ positionPawn(p.id);
+ });
+
+ renderMarks();
+ renderRoster();
+ renderEditor();
+ renderMarkEditor();
+ }
+
+ function positionMark(id) {
+ const m = marks[id]; if (!m) return;
+ const el = layer.querySelector('.mark[data-id="' + id + '"]');
+ if (!el) return;
+ const size = m.size || 48;
+ el.style.left = (m.x * mapW) + 'px';
+ el.style.top = (m.y * mapH) + 'px';
+ const g = el.querySelector('.mark-glyph');
+ g.style.width = size + 'px';
+ g.style.height = size + 'px';
+ g.style.display = (m.icon && m.icon !== 'none') ? 'block' : 'none';
+ const lab = el.querySelector('.mark-label');
+ lab.style.fontSize = Math.max(9, Math.round(size * 0.34)) + 'px';
+ lab.style.display = m.text ? 'block' : 'none';
+ }
+
+ function renderMarks() {
+ const existing = {};
+ layer.querySelectorAll('.mark').forEach(el => existing[el.getAttribute('data-id')] = el);
+ Object.keys(existing).forEach(id => { if (!marks[id]) { existing[id].remove(); delete existing[id]; } });
+
+ Object.values(marks).forEach(m => {
+ let el = existing[m.id];
+ if (!el) {
+ el = document.createElement('div');
+ el.className = 'mark';
+ el.setAttribute('data-id', m.id);
+ el.innerHTML = '<span class="mark-glyph"></span><div class="mark-label"></div>';
+ layer.appendChild(el);
+ }
+ el.className = 'mark' + (m.id === selectedMarkId ? ' selected' : '');
+ const g = el.querySelector('.mark-glyph');
+ const want = (m.icon && m.icon !== 'none') ? m.icon : '';
+ if (g.getAttribute('data-icon') !== want) {
+ g.setAttribute('data-icon', want);
+ g.innerHTML = want ? iconSvg(want) : '';
+ }
+ el.querySelector('.mark-label').textContent = m.text || '';
+ positionMark(m.id);
+ });
+ }
+
+ function renderMarkEditor() {
+ const ed = $('mark-editor');
+ const m = marks[selectedMarkId];
+ if (!m || !isMod) { ed.classList.remove('show'); return; }
+ ed.classList.add('show');
+ const f = $('mark-edit-text');
+ if (document.activeElement !== f) f.value = m.text || '';
+ $('mark-size-seg').querySelectorAll('button').forEach(b => b.classList.toggle('on', +b.dataset.size === (m.size || 48)));
+ paintIconStrip('icon-strip-edit', m.icon || 'none');
+ }
+
+ function renderRoster() {
+ const box = $('roster');
+ const ids = Object.keys(pawns);
+ if (!ids.length) { box.innerHTML = '<span class="empty">No pawns on the board yet.</span>'; return; }
+ box.innerHTML = ids.map(id => {
+ const p = pawns[id];
+ return '<span class="chip' + (id === selectedId ? ' selected' : '') + '" data-id="' + id + '">' +
+ '<img class="chip-mini" src="' + (p.img || transparentPixel()) + '" alt="">' +
+ '<span class="chip-label">' + escapeHtml(p.name || 'Unnamed') + '</span>' +
+ '</span>';
+ }).join('');
+ box.querySelectorAll('.chip').forEach(el => {
+ el.addEventListener('click', () => { selectPawn(el.getAttribute('data-id')); centerOn(el.getAttribute('data-id')); });
+ });
+ }
+
+ function renderEditor() {
+ const ed = $('editor');
+ const p = pawns[selectedId];
+ if (!p) { ed.classList.remove('show', 'needs-code'); $('unlock-bar').classList.remove('show'); return; }
+ ed.classList.add('show');
+
+ /* a protected pawn shows only the unlock prompt until this browser proves the code */
+ const needsCode = isProtected(p) && !isUnlocked(p) && !isMod;
+ ed.classList.toggle('needs-code', needsCode);
+ $('unlock-bar').classList.toggle('show', needsCode);
+ if (!needsCode) $('unlock-msg').textContent = '';
+ if (needsCode) return;
+
+ $('set-code-btn').textContent = isProtected(p) ? 'Change code' : 'Set code';
+ $('clear-code-btn').style.display = isProtected(p) ? '' : 'none';
+ $('edit-code').disabled = !canEdit(p);
+ $('set-code-btn').disabled = !canEdit(p);
+ $('clear-code-btn').disabled = !canEdit(p);
+
+ const nameField = $('edit-name');
+ if (document.activeElement !== nameField) nameField.value = p.name || '';
+ nameField.disabled = !canEdit(p);
+ $('size-seg').querySelectorAll('button').forEach(b => b.classList.toggle('on', +b.dataset.size === (p.size || 64)));
+
+ $('edit-owner').textContent = isProtected(p)
+ ? (isMod ? 'Code protected, moderator override' : 'Unlocked on this browser')
+ : (p.owner === clientId ? 'Your pawn' : (isMod ? "Another player's pawn" : 'Added by another player'));
+ }
+
+ function centerOn(id) {
+ const p = pawns[id]; if (!p) return;
+ panX = stage.clientWidth / 2 - p.x * mapW * zoom;
+ panY = stage.clientHeight / 2 - p.y * mapH * zoom;
+ applyTransform();
+ }
+
+ /* ══ SYNC ════════════════════════════════════════════════════════
+    The client no longer owns the board. It sends small operations and the
+    Function decides which ones it is allowed to run, then hands back the
+    authoritative board. Local edits are applied optimistically and corrected
+    by the reply if the server refused them. */
+ let flushTimer = null, lastBlobKb = 0;
+ let pendingOps = [];               /* discrete operations waiting to go out */
+ let dirtyPawns = {}, dirtyMarks = {};   /* ids whose current state needs pushing */
+ let inFlight = false;
+
+ function touchPawn(id) { dirtyPawns[id] = true; scheduleFlush(400); }
+ function touchMark(id) { dirtyMarks[id] = true; scheduleFlush(400); }
+ function pushOp(op) { pendingOps.push(op); scheduleFlush(0); }
+
+ function scheduleFlush(delay) {
+ dirty = true;
+ setSync('saving', 'Saving…');
+ clearTimeout(flushTimer);
+ flushTimer = setTimeout(flushOps, delay);
+ }
+
+ /* proofs this browser has earned, one per coded pawn */
+ let proofs = (function () {
+ try { return JSON.parse(localStorage.getItem('asa-map-proofs') || '{}') || {}; }
+ catch (e) { return {}; }
+ })();
+ function rememberProof(id, proof) {
+ if (proof) proofs[id] = proof; else delete proofs[id];
+ try { localStorage.setItem('asa-map-proofs', JSON.stringify(proofs)); } catch (e) {}
+ }
+ let modToken = (function () {
+ try { return localStorage.getItem('asa-map-modtoken') || null; } catch (e) { return null; }
+ })();
+ function rememberToken(t) {
+ modToken = t;
+ try {
+ if (t) localStorage.setItem('asa-map-modtoken', t);
+ else localStorage.removeItem('asa-map-modtoken');
+ } catch (e) {}
+ }
+
+ /* only send the proofs the outgoing batch actually needs */
+ function proofsFor(ops) {
+ const out = {};
+ ops.forEach(o => {
+ const id = o.id || (o.pawn && o.pawn.id);
+ if (!id) return;
+ /* authProof wins: a code change must authorise with the OLD proof */
+ if (o.authProof) out[id] = o.authProof;
+ else if (proofs[id]) out[id] = proofs[id];
+ });
+ return out;
+ }
+
+ async function flushOps() {
+ if (inFlight) { scheduleFlush(250); return; }
+ const ops = pendingOps.slice();
+ pendingOps = [];
+ Object.keys(dirtyPawns).forEach(id => { if (pawns[id]) ops.push({ op: 'pawn-put', pawn: pawns[id] }); });
+ Object.keys(dirtyMarks).forEach(id => { if (marks[id]) ops.push({ op: 'mark-put', mark: marks[id] }); });
+ dirtyPawns = {}; dirtyMarks = {};
+ if (!ops.length) { dirty = false; refreshSyncIdle(); return; }
+
+ inFlight = true;
+ try {
+ const body = JSON.stringify({ ops: ops, mod: modToken, proofs: proofsFor(ops), client: clientId });
+ lastBlobKb = Math.round(body.length / 1024);
+ const res = await fetch(STORAGE_ENDPOINT, {
+ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body
+ });
+ const data = await res.json().catch(() => null);
+
+ if (res.status === 401 && data && data.modExpired) {
+ rememberToken(null); isMod = false; applyModUi();
+ adoptBoard(data && data.board);
+ setSync('error', 'Moderator session expired. Unlock again.');
+ return;
+ }
+ if (!res.ok) {
+ setSync('error', (data && data.error) ? data.error : 'Save refused (status ' + res.status + ').');
+ await loadState(false);
+ return;
+ }
+ adoptBoard(data.board);
+ const refused = (data.results || []).filter(r => !r.ok);
+ if (refused.length) setSync('error', refused[0].error || 'Some changes were refused.');
+ else refreshSyncIdle();
+ } catch (e) {
+ setSync('error', 'Offline. Changes stay on this screen only.');
+ } finally {
+ inFlight = false;
+ dirty = false;
+ }
+ }
+
+ /* replace local state with what the server says is true */
+ function adoptBoard(data) {
+ if (!data || typeof data !== 'object') return;
+ pawns = (data.pawns && typeof data.pawns === 'object') ? data.pawns : {};
+ Object.keys(pawns).forEach(k => migratePawn(pawns[k]));
+ marks = (data.marks && typeof data.marks === 'object') ? data.marks : {};
+ Object.keys(marks).forEach(k => migrateMark(marks[k]));
+ const wantMap = data.map || null;
+ if (wantMap !== customMap) { customMap = wantMap; loadMapSrc(customMap || DEFAULT_MAP); }
+ if (selectedId && !pawns[selectedId]) selectedId = null;
+ if (selectedMarkId && !marks[selectedMarkId]) selectedMarkId = null;
+ /* drop proofs for pawns that are gone or no longer coded */
+ Object.keys(proofs).forEach(id => {
+ if (!pawns[id] || !pawns[id].protected) rememberProof(id, null);
+ });
+ render();
+ }
+
+ /* a moderator token from a previous visit is worth nothing until the server
+    says so, so an empty batch is sent purely to have it checked */
+ async function resumeMod() {
+ if (!modToken) return;
+ try {
+ const res = await fetch(STORAGE_ENDPOINT, {
+ method: 'POST', headers: { 'Content-Type': 'application/json' },
+ body: JSON.stringify({ ops: [], mod: modToken })
+ });
+ const data = await res.json().catch(() => null);
+ if (res.ok && data && data.isMod) { isMod = true; applyModUi(); render(); }
+ else { rememberToken(null); }
+ } catch (e) { /* offline: stay a player until the server can be reached */ }
+ }
+
+ async function loadState(initial) {
+ try {
+ const res = await fetch(STORAGE_ENDPOINT, { cache: 'no-store' });
+ if (res.ok) {
+ adoptBoard(await res.json());
+ refreshSyncIdle();
+ return true;
+ }
+ setSync('error', 'Could not reach /map-state (status ' + res.status + ').');
+ } catch (e) {
+ if (initial) setSync('error', 'No /map-state endpoint yet. The board is not shared.');
+ }
+ return false;
+ }
+ function refreshSyncIdle() {
+ setSync('saved', 'Board synced.' + (lastBlobKb ? ' Last write ' + lastBlobKb + ' KB.' : ''));
+ }
+
+ function migratePawn(p) {
+ if (typeof p.x !== 'number') p.x = 0.5;
+ if (typeof p.y !== 'number') p.y = 0.5;
+ if (typeof p.size !== 'number') p.size = 64;
+ if (!p.owner) p.owner = 'unknown';
+ if (typeof p.name !== 'string') p.name = 'Unnamed';
+ p.protected = !!p.protected;
+ p.yours = !!p.yours;
+ if (typeof p.salt !== 'string') p.salt = null;
+ }
+
+ function migrateMark(m) {
+ if (typeof m.x !== 'number') m.x = 0.5;
+ if (typeof m.y !== 'number') m.y = 0.5;
+ if (typeof m.size !== 'number') m.size = 48;
+ if (typeof m.text !== 'string') m.text = '';
+ if (typeof m.icon !== 'string' || (m.icon !== 'none' && !ICONS[m.icon])) m.icon = 'none';
+ }
+
+ /* pull others' changes periodically, but never yank the board out from under
+    an active drag or an unsaved local change (last-write-wins, like the sim) */
+ function startPolling() {
+ setInterval(() => {
+ if (dragging || draggingMark || dirty || panStart) return;
+ loadState(false);
+ }, POLL_MS);
+ }
+
+ /* ══ HELPERS ═════════════════════════════════════════════════════ */
+ function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+ function clamp01(v) { return clamp(v, 0, 1); }
+ function escapeHtml(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+ function transparentPixel() { return 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw=='; }
+
+ /* expose the handlers used by inline attributes */
+ Object.assign(window, {
+ addPawn, previewNew, renameSelected, sizeSelected, deleteSelected,
+ tryUnlockMod, lockMod, clearBoard, replaceMap, resetMap,
+ zoomBy, fitView, toggleTools,
+ addMark, renameMark, sizeMark, deleteMark, deselectMark, clearMarks,
+ unlockPawn, setPawnCode, clearPawnCode, digitsOnly
+ });
+
+ /* ══ BOOT ════════════════════════════════════════════════════════ */
+ window.addEventListener('resize', () => {
+ /* keep the user's zoom on resize, but recover if the view was never valid */
+ if (!isFinite(zoom) || zoom <= 0) fitView(); else applyTransform();
+ });
+ window.addEventListener('load', () => { if (!isFinite(zoom) || zoom <= 0) fitView(); });
+ buildIconStrips();
+ applyModUi();
+ applyToolsUi();
+ loadMapSrc(DEFAULT_MAP);
+ setSync('saving', 'Loading board…');
+ loadState(true).then(resumeMod).then(startPolling);
+})();
+</script>
+</body>
+</html>
