@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>The Edge of the World - Character Map</title>
+<title>Asa Map</title>
 <!--
   ASA / Thelmia character map. Deploys the same way as the combat calculator:
   a Cloudflare Pages Function at the STORAGE_ENDPOINT path below reads and writes
@@ -515,6 +515,7 @@
  selectedMarkId = null;
  render();
  /* a new code has to ride along with the pawn that carries it */
+ watchCreate(id, pawns[id], setCode);
  if (setCode) pushOp({ op: 'pawn-put', pawn: pawns[id], setCode: setCode });
  else touchPawn(id);
  }
@@ -548,6 +549,7 @@
  const p = pawns[selectedId]; if (!p) return;
  if (!canEdit(p)) { flashMod("That pawn belongs to someone else. A moderator can remove it."); return; }
  const gone = selectedId;
+ delete watchedCreates[gone];
  pushOp({ op: 'pawn-delete', id: gone });
  delete pawns[gone]; selectedId = null; render();
  }
@@ -1056,6 +1058,36 @@
  let inFlight = false;
 
  function touchPawn(id) { dirtyPawns[id] = true; scheduleFlush(400); }
+
+ /* Concurrent placements can collide: the board is one stored value, so two
+    writes that overlap can lose one of the characters even though the server
+    reported success. Anything this browser created is watched for a short
+    while and re-sent if it does not appear. The window is deliberately short
+    so that a moderator removing a character does not fight the client. */
+ const CREATE_WATCH_MS = 30000;
+ let watchedCreates = {};        /* id -> { pawn, until, setCode } */
+ function watchCreate(id, pawn, setCode) {
+ watchedCreates[id] = { pawn: pawn, until: Date.now() + CREATE_WATCH_MS, setCode: setCode || null };
+ }
+ function reconcileCreates() {
+ const now = Date.now();
+ let resent = 0;
+ Object.keys(watchedCreates).forEach(id => {
+ const w = watchedCreates[id];
+ if (pawns[id]) { delete watchedCreates[id]; return; }   /* it landed */
+ if (now > w.until) { delete watchedCreates[id]; return; } /* give up quietly */
+ /* it went missing inside the window: put it back and send it again */
+ pawns[id] = w.pawn;
+ if (w.setCode) pushOp({ op: 'pawn-put', pawn: w.pawn, setCode: w.setCode });
+ else pushOp({ op: 'pawn-put', pawn: w.pawn });
+ resent++;
+ });
+ if (resent) {
+ setSync('saving', 'Re-placing your character…');
+ render();
+ }
+ return resent;
+ }
  function touchMark(id) { dirtyMarks[id] = true; scheduleFlush(400); }
  function pushOp(op) { pendingOps.push(op); scheduleFlush(0); }
 
@@ -1063,7 +1095,9 @@
  dirty = true;
  setSync('saving', 'Saving…');
  clearTimeout(flushTimer);
- flushTimer = setTimeout(flushOps, delay);
+ /* jitter keeps two clients that just collided from retrying in step */
+ const jitter = delay ? 0 : Math.floor(Math.random() * 400);
+ flushTimer = setTimeout(flushOps, delay + jitter);
  }
 
  /* proofs this browser has earned, one per coded pawn */
@@ -1140,8 +1174,10 @@
  }
  }
 
- /* replace local state with what the server says is true */
- function adoptBoard(data) {
+ /* Replace local state with what the server says is true. fromPoll marks an
+    independent read: a character is only considered safely stored once it
+    comes back in one of those, not in the reply to our own write. */
+ function adoptBoard(data, fromPoll) {
  if (!data || typeof data !== 'object') return;
  pawns = (data.pawns && typeof data.pawns === 'object') ? data.pawns : {};
  Object.keys(pawns).forEach(k => migratePawn(pawns[k]));
@@ -1156,6 +1192,7 @@
  if (!pawns[id] || !pawns[id].protected) rememberProof(id, null);
  });
  render();
+ if (fromPoll) reconcileCreates();
  }
 
  /* a moderator token from a previous visit is worth nothing until the server
@@ -1177,7 +1214,7 @@
  try {
  const res = await fetch(STORAGE_ENDPOINT, { cache: 'no-store' });
  if (res.ok) {
- adoptBoard(await res.json());
+ adoptBoard(await res.json(), true);
  refreshSyncIdle();
  return true;
  }
