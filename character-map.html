@@ -92,6 +92,8 @@
    background: #efe7d4cc; border: 1px solid #2c231766; padding: 0 4px; display: inline-block;
    white-space: nowrap; max-width: 140px; overflow: hidden; text-overflow: ellipsis; }
  .pawn.selected .pawn-name { background: #efe7d4; border-color: var(--accent); }
+ #mod-suspended { display: none; }
+ #mod-suspended.show { display: block; }
  #unlock-bar { display: none; }
  #unlock-bar.show { display: flex; }
  .editor.needs-code #pawn-controls { display: none; }
@@ -247,6 +249,13 @@
        <span class="hint" id="mod-msg"></span>
      </div>
    </div>
+   <div id="mod-suspended">
+     <div class="bar">
+       <span class="hint">Moderator mode is off. You are seeing the board as a player does.</span>
+       <button class="act-btn" onclick="setModSuspended(false)">Resume moderator</button>
+       <button onclick="lockMod()">Sign out</button>
+     </div>
+   </div>
    <div class="mod-panel" id="mod-panel">
      <div class="bar">
        <button class="btn-danger" onclick="clearBoard()">Clear pawns</button>
@@ -254,7 +263,8 @@
        <span class="file-btn"><button type="button">Replace map image…</button>
          <input type="file" id="map-file" accept="image/*" onchange="replaceMap(this)" /></span>
        <button onclick="resetMap()">Restore default map</button>
-       <button onclick="lockMod()">Lock controls</button>
+       <button onclick="setModSuspended(true)">Turn moderator mode off</button>
+       <button onclick="lockMod()">Sign out</button>
      </div>
 
      <div class="mark-tools">
@@ -619,6 +629,8 @@
  const data = await res.json().catch(() => null);
  if (res.ok && data && data.token) {
  rememberToken(data.token);
+ modSuspended = false;
+ try { localStorage.setItem('asa-map-modoff', '0'); } catch (e) {}
  isMod = true;
  $('mod-pin').value = '';
  $('mod-msg').textContent = '';
@@ -634,11 +646,15 @@
  function lockMod() { rememberToken(null); isMod = false; applyModUi(); render(); }
  function applyModUi() {
  if (!isMod) selectedMarkId = null;
+ const held = !!modToken;                 /* a valid session, powered or not */
  document.body.classList.toggle('is-mod', isMod);
  $('mod-panel').classList.toggle('show', isMod);
- $('mod-locked').style.display = isMod ? 'none' : '';
+ $('mod-suspended').classList.toggle('show', held && modSuspended);
+ $('mod-locked').style.display = held ? 'none' : '';
  $('mod-msg').textContent = '';
- $('mod-indicator').innerHTML = isMod ? '<span class="badge">Moderator</span>' : '';
+ $('mod-indicator').innerHTML = isMod
+ ? '<span class="badge">Moderator</span>'
+ : (held ? '<span class="badge">Moderator off</span>' : '');
  }
  function flashMod(msg) { setSync('error', msg); setTimeout(() => refreshSyncIdle(), 2500); }
 
@@ -1116,8 +1132,25 @@
  let modToken = (function () {
  try { return localStorage.getItem('asa-map-modtoken') || null; } catch (e) { return null; }
  })();
+ /* A moderator can stand their powers down without giving up the session, to
+    check what players actually see. While it is off the token is withheld from
+    every request, so the server treats this browser exactly as a player. */
+ let modSuspended = (function () {
+ try { return localStorage.getItem('asa-map-modoff') === '1'; } catch (e) { return false; }
+ })();
+ function setModSuspended(on) {
+ modSuspended = !!on;
+ try { localStorage.setItem('asa-map-modoff', modSuspended ? '1' : '0'); } catch (e) {}
+ isMod = !!modToken && !modSuspended;
+ applyModUi();
+ render();
+ }
  function rememberToken(t) {
  modToken = t;
+ if (!t) {
+ modSuspended = false;
+ try { localStorage.setItem('asa-map-modoff', '0'); } catch (e) {}
+ }
  try {
  if (t) localStorage.setItem('asa-map-modtoken', t);
  else localStorage.removeItem('asa-map-modtoken');
@@ -1148,7 +1181,8 @@
 
  inFlight = true;
  try {
- const body = JSON.stringify({ ops: ops, mod: modToken, proofs: proofsFor(ops), client: clientId });
+ const body = JSON.stringify({ ops: ops, mod: (modSuspended ? null : modToken),
+ proofs: proofsFor(ops), client: clientId });
  lastBlobKb = Math.round(body.length / 1024);
  const res = await fetch(STORAGE_ENDPOINT, {
  method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body
@@ -1209,8 +1243,8 @@
  body: JSON.stringify({ ops: [], mod: modToken })
  });
  const data = await res.json().catch(() => null);
- if (res.ok && data && data.isMod) { isMod = true; applyModUi(); render(); }
- else { rememberToken(null); }
+ if (res.ok && data && data.isMod) { isMod = !modSuspended; applyModUi(); render(); }
+ else { rememberToken(null); isMod = false; applyModUi(); render(); }
  } catch (e) { /* offline: stay a player until the server can be reached */ }
  }
 
@@ -1269,7 +1303,7 @@
  /* expose the handlers used by inline attributes */
  Object.assign(window, {
  addPawn, previewNew, renameSelected, sizeSelected, deleteSelected,
- tryUnlockMod, lockMod, clearBoard, replaceMap, resetMap,
+ tryUnlockMod, lockMod, setModSuspended, clearBoard, replaceMap, resetMap,
  toggleTools,
  addMark, renameMark, sizeMark, deleteMark, deselectMark, clearMarks,
  unlockPawn, setPawnCode, clearPawnCode, digitsOnly
