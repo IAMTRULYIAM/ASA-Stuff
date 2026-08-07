@@ -47,6 +47,7 @@ export async function onRequestPost(context) {
     equity: String(body.equity || '').slice(0, 40),
     equityLabel: String(body.equityLabel || '').slice(0, 80),
     discipline: body.discipline ? String(body.discipline).slice(0, 40) : null,
+    creature: body.creature ? String(body.creature).slice(0, 60) : null,
     schools: Array.isArray(body.schools) ? body.schools.slice(0, 4).map(function (s) { return String(s).slice(0, 40); }) : [],
     spells: Array.isArray(body.spells) ? body.spells.slice(0, 12).map(function (s) {
       return {
