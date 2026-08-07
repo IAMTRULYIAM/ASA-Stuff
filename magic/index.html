@@ -20,7 +20,8 @@
     color:var(--ink);
     font-family:"Texturina",Georgia,"Times New Roman",serif;
     font-size:17px;
-    line-height:1.55;
+    line-height:1.5;
+    letter-spacing:-.012em;
     -webkit-font-smoothing:antialiased;
   }
   .frame{
@@ -33,7 +34,7 @@
   }
   .eyebrow{
     font-size:11px;
-    letter-spacing:.34em;
+    letter-spacing:.1em;
     text-transform:uppercase;
     opacity:.6;
     margin:0 0 40px;
@@ -41,7 +42,7 @@
   h1{
     font-size:26px;
     font-weight:400;
-    letter-spacing:.02em;
+    letter-spacing:-.02em;
     margin:0 0 32px;
   }
   main{flex:1 0 auto;}
@@ -49,6 +50,7 @@
   /* name field */
   input[type=text]{
     width:100%;
+    letter-spacing:-.02em;
     background:transparent;
     border:0;
     border-bottom:1px solid var(--ink);
@@ -84,7 +86,7 @@
   .opt .title b{font-weight:400;}
   .opt .meta{
     font-size:11px;
-    letter-spacing:.22em;
+    letter-spacing:.06em;
     text-transform:uppercase;
     opacity:.6;
     white-space:nowrap;
@@ -101,6 +103,46 @@
   }
   .opt .fine span{display:block;}
 
+  /* creatures */
+  .beast{display:flex;gap:18px;align-items:flex-start;}
+  .beast .art{
+    flex:0 0 118px;
+    width:118px;
+    aspect-ratio:1/1;
+    border:1px solid var(--ink);
+    display:flex;align-items:center;justify-content:center;
+    overflow:hidden;
+    background:var(--paper);
+  }
+  .beast .art img{width:100%;height:100%;object-fit:contain;display:block;}
+  .beast .art.wip{
+    font-size:10px;
+    letter-spacing:.06em;
+    text-transform:uppercase;
+    text-align:center;
+    opacity:.55;
+    padding:8px;
+    line-height:1.35;
+  }
+  .beast .col{flex:1;min-width:0;}
+  .abil{margin-top:10px;font-size:14px;}
+  .abil .head{
+    font-size:10px;
+    letter-spacing:.06em;
+    text-transform:uppercase;
+    opacity:.6;
+    margin-bottom:3px;
+  }
+  .opt[aria-pressed=true] .abil .head{opacity:.8;}
+  .abil ul{list-style:none;margin:0;padding:0;}
+  .abil li{padding:2px 0;opacity:.78;}
+  .abil li b{font-weight:400;opacity:1;}
+  .opt[aria-pressed=true] .abil li{opacity:.9;}
+  @media (max-width:520px){
+    .beast{flex-direction:column;}
+    .beast .art{flex:none;width:100%;max-width:220px;}
+  }
+
   /* review */
   dl{margin:0;}
   dl div{display:flex;gap:20px;padding:11px 0;border-bottom:1px solid var(--ink);}
@@ -108,7 +150,7 @@
   dt{
     flex:0 0 132px;
     font-size:11px;
-    letter-spacing:.22em;
+    letter-spacing:.06em;
     text-transform:uppercase;
     opacity:.6;
     padding-top:4px;
@@ -141,7 +183,7 @@
     flex:1;
     text-align:center;
     font-size:11px;
-    letter-spacing:.22em;
+    letter-spacing:.06em;
     text-transform:uppercase;
     opacity:.6;
   }
@@ -150,7 +192,7 @@
     display:inline-block;
     margin-top:26px;
     font-size:11px;
-    letter-spacing:.22em;
+    letter-spacing:.06em;
     text-transform:uppercase;
     opacity:.6;
   }
@@ -260,6 +302,48 @@ var DISCIPLINES = {
 
 var DISCIPLINE_ORDER = ["TRUTH","CONQUEST","RENEWAL"];
 
+var CREATURES = [
+  {
+    key: "INGAAN",
+    name: "In\u2019gaan",
+    img: "img/ingaan.png",
+    text: "Birthed of a sinister long-lost Ardan necromantic ritual, the In\u2019gaan is a spiritual familiar who cannot be hurt by physical attack, and can only be killed through the destruction of its mummified head. The Obeisance mage who gains mastery over the In\u2019gaan does not do it for its houndlike intelligence and vicious temper, but for its unflinching loyalty and repertoire of abilities. As a spirit, it can spy on, possess, curse, and tear enemies to shreds at the order of its master. Still, the In\u2019gaan\u2019s allegiance cannot be taken for granted. Stories abound in the canon of magi of masters abusive or neglectful finding themselves the target of the In\u2019gaan\u2019s hateful maws.",
+    passive: { n:"Incorporeal", d:"The In\u2019gaan, as a spirit, is only visible to those who hold mastery over it, and cannot be hurt by physical attacks." },
+    moves: [
+      { n:"Tsukimono", d:"Possesses a target for up to a minute, leading to intense hunger, chest pains, and the target barking like a dog and clawing at themselves." },
+      { n:"Chou-ho", d:"Ventures up to a kilometre from its fetish, relaying visual and auditory information to its master instantaneously. Safe for up to ten minutes per week before the master begins to feel the side effects of Tsukimono." },
+      { n:"Maul", d:"Savagely bites and scratches at a target." }
+    ]
+  },
+  {
+    key: "KIJIMUNAA",
+    name: "Kijimunaa",
+    img: "img/kijimunaa.png",
+    text: "Forest tricksters of the ancient Visanti undergrowth, the Kijimunaa are fickle beings indeed. Mercurial, they delight in rotting fish-heads and practical humour, yet are disturbed by chickens and octopuses. They can communicate telepathically if they so choose, their dialogue heard by others only as the giggling of a child. Kijimunaa are a useful vassal for Obeisance mages who seek magical backup. Born with a plethora of cheap tricks and curses intended to annoy and frustrate victims, they are most treasured for one specific ability: the capacity to learn and store one spellsong at a time in memory, to be deployed at the command of their master.",
+    passive: { n:"Bag of Tricks", d:"Kijimunaa abilities can be used up to three times a day. A Kijimunaa not permitted to use any tricks for days on end will begin to plot against their master." },
+    moves: [
+      { n:"Mockery", d:"Mockingly laughs at the target, who feels a sense of irrational anger bubbling inside." },
+      { n:"Invert Movement", d:"Flips the intended orientation of a target for thirty seconds. Someone meaning to move forward begins walking backwards." },
+      { n:"Grass Trick", d:"In grassy terrain, grows knots of grass below the target\u2019s feet to ensnare them." },
+      { n:"Darkness Trick", d:"Magically snuffs out all artificial sources of light in a room." },
+      { n:"Record Song", d:"Learns one order I or II spellsong from their master within six hours of intensive study, and casts it when required with no chance of miscast. Once cast, the Kijimunaa unlearns the spellsong." }
+    ]
+  },
+  {
+    key: "SERPENT",
+    name: "Feathered Serpent",
+    img: null,
+    text: "Heavenly beasts from the mountains of Asimsuva, these messengers of life and death are said to be curt in speech, and even more so in the delivery of their sacred violence. Said to have readily forsaken the elves in favour of men, they have been the tools of many an Obeisance mage since the days of ancient Ardapoli. It is even suggested in some tomes that their serpentine bodies are of intentional design, formed for easy consumption by the jaws of men. Strong yet nimble, the Feathered Serpent finds use among Obeisance mages who seek strength in their subjects. Though no larger than a deer, one can easily dispose of a group of armoured men with deadly precision, and can outwit and outpace creatures twice their size or more.",
+    passive: { n:"Flight", d:"Though most comfortable slithering on the ground, its enchanted feathers permit it to glide without issue through air and water alike. The master may mount it for short durations, though the Serpent will not be pleased." },
+    moves: [
+      { n:"Fangs of the Shayadeen", d:"A cruel bite unleashes a toxin into the target\u2019s bloodstream, paralysing them for up to 30 seconds. No effect on creatures with thick skin or without running blood." },
+      { n:"Whiplash", d:"A strike from the tail can snap bone, dent plate, and smash through loose stone with ease." },
+      { n:"Constriction", d:"Curling its body around a target, restrains the victim, or with greater force begins to slowly crush their bones and suffocate them." },
+      { n:"Feathered Volley", d:"Unleashes its sharp feathers in a targeted volley against one or more targets, cutting through metal and flesh. Usable once every two months, and the Serpent cannot fly while it regrows its feathers." }
+    ]
+  }
+];
+
 var EQUITIES = {
   hedgesinger:  { label:"Hedgesinger", l1:1, l2:0, blurb:"Self taught, never formally trained." },
   conservatory: { label:"Conservatory Trained", l1:3, l2:0, blurb:"Trained on campus within a single Discipline." },
@@ -276,14 +360,20 @@ var state = {
   equity: null,
   school: null,
   discipline: null,
+  creature: null,
   picks: [],
   saved: null,
   error: null,
   sending: false
 };
 
-var STEPS = ["name","equity","path","spells","review","saved"];
-var step = 0;
+function stepList(){
+  var out = ["name","equity","path","spells"];
+  if (state.school === "OBEISANCE") out.push("creature");
+  out.push("review","saved");
+  return out;
+}
+var stepName = "name";
 
 var mainEl = document.getElementById("main");
 var eyebrowEl = document.getElementById("eyebrow");
@@ -410,7 +500,8 @@ function screenEquity(){
         if (state.equity !== key){
           state.equity = key;
           state.picks = [];
-          if (key === "conservatory") state.school = null; else state.discipline = null;
+          if (key === "conservatory"){ state.school = null; state.creature = null; }
+          else state.discipline = null;
         }
         render();
       }
@@ -457,7 +548,11 @@ function screenPath(){
       meta: thin ? "only " + first + " of order I" : null,
       selected: state.school === key,
       onClick: function(){
-        if (state.school !== key){ state.school = key; state.picks = []; }
+        if (state.school !== key){
+          state.school = key;
+          state.picks = [];
+          state.creature = null;
+        }
         render();
       }
     }));
@@ -493,6 +588,70 @@ function screenSpells(){
   return frag;
 }
 
+function screenCreature(){
+  var frag = document.createDocumentFragment();
+  frag.appendChild(el("h1", { text:"Starter creature" }));
+  var list = el("ul", { "class":"list" });
+
+  CREATURES.forEach(function(c){
+    var selected = state.creature === c.key;
+    var btn = el("button", {
+      "class":"opt","type":"button",
+      "aria-pressed": selected ? "true" : "false",
+      on:{ click: function(){ state.creature = selected ? null : c.key; render(); } }
+    });
+
+    var row = el("div", { "class":"beast" });
+
+    var art;
+    if (c.img){
+      art = el("div", { "class":"art" });
+      art.appendChild(el("img", { src:c.img, alt:c.name, loading:"lazy" }));
+    } else {
+      art = el("div", { "class":"art wip", text:"Image in progress" });
+    }
+    row.appendChild(art);
+
+    var col = el("div", { "class":"col" });
+    var title = el("div", { "class":"title" });
+    title.appendChild(el("b", { text:c.name }));
+    col.appendChild(title);
+    col.appendChild(el("div", { "class":"body", text:c.text }));
+
+    var pa = el("div", { "class":"abil" });
+    pa.appendChild(el("div", { "class":"head", text:"Passive" }));
+    var pul = el("ul");
+    var pli = el("li");
+    pli.appendChild(el("b", { text:c.passive.n + ". " }));
+    pli.appendChild(document.createTextNode(c.passive.d));
+    pul.appendChild(pli);
+    pa.appendChild(pul);
+    col.appendChild(pa);
+
+    var ma = el("div", { "class":"abil" });
+    ma.appendChild(el("div", { "class":"head", text:"Moveset" }));
+    var mul = el("ul");
+    c.moves.forEach(function(m){
+      var li = el("li");
+      li.appendChild(el("b", { text:m.n + ". " }));
+      li.appendChild(document.createTextNode(m.d));
+      mul.appendChild(li);
+    });
+    ma.appendChild(mul);
+    col.appendChild(ma);
+
+    row.appendChild(col);
+    btn.appendChild(row);
+
+    var li2 = el("li");
+    li2.appendChild(btn);
+    list.appendChild(li2);
+  });
+
+  frag.appendChild(list);
+  return frag;
+}
+
 function screenReview(){
   var frag = document.createDocumentFragment();
   frag.appendChild(el("h1", { text:"Review" }));
@@ -510,6 +669,7 @@ function screenReview(){
   row("Equity", EQUITIES[state.equity].label);
   if (isConservatory()) row("Discipline", DISCIPLINES[state.discipline].label);
   row("Schools", activeSchools().map(function(s){ return SCHOOLS[s].label; }).join(", "));
+  if (state.creature) row("Creature", creatureName(state.creature));
   state.picks.slice().sort(function(a,b){ return a.spell.l - b.spell.l; }).forEach(function(p, i){
     row("Spell " + (i+1), p.spell.n, ROMAN[p.spell.l] + "  \u00b7  " + SCHOOLS[p.school].label + "  \u00b7  " + p.spell.d);
   });
@@ -534,8 +694,8 @@ function screenSaved(){
   var again = el("a", { "class":"ref", href:"#", text:"Start again" });
   again.addEventListener("click", function(e){
     e.preventDefault();
-    state = { name:"", equity:null, school:null, discipline:null, picks:[], saved:null, error:null, sending:false };
-    step = 0;
+    state = { name:"", equity:null, school:null, discipline:null, creature:null, picks:[], saved:null, error:null, sending:false };
+    stepName = "name";
     render();
   });
   frag.appendChild(again);
@@ -545,25 +705,33 @@ function screenSaved(){
 /* navigation */
 
 function canAdvance(){
-  var s = STEPS[step];
+  var s = stepName;
   if (s === "name") return state.name.trim().length > 0;
   if (s === "equity") return !!state.equity;
   if (s === "path") return isConservatory() ? !!state.discipline : !!state.school;
   if (s === "spells") return chosen(1) === required(1) && chosen(2) === required(2);
+  if (s === "creature") return !!state.creature;
   if (s === "review") return !state.sending;
   return false;
 }
 
 function statusText(){
-  var s = STEPS[step];
+  var s = stepName;
   if (s === "spells"){
     var parts = [];
     parts.push("I " + chosen(1) + "/" + required(1));
     if (required(2)) parts.push("II " + chosen(2) + "/" + required(2));
     return parts.join("   ");
   }
+  if (s === "creature") return state.creature ? creatureName(state.creature) : "";
   if (s === "review" && state.sending) return "Filing";
   return "";
+}
+
+function creatureName(key){
+  var found = null;
+  CREATURES.forEach(function(c){ if (c.key === key) found = c.name; });
+  return found;
 }
 
 function payload(){
@@ -572,6 +740,7 @@ function payload(){
     equity: state.equity,
     equityLabel: EQUITIES[state.equity].label,
     discipline: isConservatory() ? DISCIPLINES[state.discipline].label : null,
+    creature: state.creature ? creatureName(state.creature) : null,
     schools: activeSchools().map(function(s){ return SCHOOLS[s].label; }),
     spells: state.picks.map(function(p){
       return { school: SCHOOLS[p.school].label, name: p.spell.n, level: p.spell.l };
@@ -593,7 +762,7 @@ function submit(){
     state.sending = false;
     if (r.ok && r.data && r.data.ok){
       state.saved = r.data.id;
-      step = STEPS.indexOf("saved");
+      stepName = "saved";
     } else {
       state.error = (r.data && r.data.error) ? r.data.error : "The register did not accept the record.";
     }
@@ -607,30 +776,37 @@ function submit(){
 
 function goNext(){
   if (!canAdvance()) return;
-  if (STEPS[step] === "review"){ submit(); return; }
-  step = Math.min(step + 1, STEPS.length - 1);
+  if (stepName === "review"){ submit(); return; }
+  var list = stepList();
+  var i = list.indexOf(stepName);
+  stepName = list[Math.min(i + 1, list.length - 1)];
   render();
 }
 
 function goBack(){
-  if (step === 0 || STEPS[step] === "saved") return;
-  step = step - 1;
+  var list = stepList();
+  var i = list.indexOf(stepName);
+  if (i <= 0 || stepName === "saved") return;
+  stepName = list[i - 1];
   render();
 }
 
 function updateNav(){
+  var list = stepList();
   nextEl.disabled = !canAdvance();
-  backEl.disabled = step === 0 || STEPS[step] === "saved";
+  backEl.disabled = list.indexOf(stepName) <= 0 || stepName === "saved";
   statusEl.textContent = statusText();
 }
 
 function render(){
-  var s = STEPS[step];
+  if (stepList().indexOf(stepName) === -1) stepName = "spells";
+  var s = stepName;
   mainEl.innerHTML = "";
   if (s === "name") mainEl.appendChild(screenName());
   else if (s === "equity") mainEl.appendChild(screenEquity());
   else if (s === "path") mainEl.appendChild(screenPath());
   else if (s === "spells") mainEl.appendChild(screenSpells());
+  else if (s === "creature") mainEl.appendChild(screenCreature());
   else if (s === "review") mainEl.appendChild(screenReview());
   else mainEl.appendChild(screenSaved());
   eyebrowEl.textContent = state.name.trim() ? state.name.trim() : "Spell Selection";
